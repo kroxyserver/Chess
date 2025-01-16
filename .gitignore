@@ -72,6 +72,8 @@ Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Content Folder
 /Content/Assets
 /Content/Fab
 /Content/Megascans
