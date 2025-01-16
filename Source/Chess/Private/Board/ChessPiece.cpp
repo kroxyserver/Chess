@@ -868,39 +868,35 @@ TArray<FChessTileInfo> AChessPiece::CalculateValidMoveTilesForKing(TArray<FChess
 		// if White king is not under check
 		if (!ChessBoard->bIsWhiteKingUnderCheck)
 		{
-			// if white king and king side rook have not moved
-			if (!ChessBoard->HasWhiteKingOrKingSideRookMoved())
-			{
-				// if no piece is present one tile to the right
-				if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].ChessPieceOnTile)
-					// if one tile to the right isnt under attack
-					if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].bIsTileUnderAttackByBlackPiece)
-					//if (ChessBoard->ChessTilesUnderAttackByBlackPieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex + 1]) == INDEX_NONE)
-						// if no piece is present two tiles to the right
-						if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].ChessPieceOnTile)
-							// if two tiles to the right isnt under attack
+			// if White king side rook alive
+			if (ChessBoard->bIsWhiteKingSideRookAlive)
+				// if white king and king side rook have not moved
+				if (!ChessBoard->HasWhiteKingOrKingSideRookMoved())
+					// if no piece is present one tile to the right
+					if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].ChessPieceOnTile)
+						// if one tile to the right isnt under attack
+						if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].bIsTileUnderAttackByBlackPiece)
+							// if no piece is present two tiles to the right
 							if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].ChessPieceOnTile)
-							//if (ChessBoard->ChessTilesUnderAttackByBlackPieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex + 2]) == INDEX_NONE)
-								ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex + 2]);
-			}
-			
-			// if white king and queen side rook have not moved
-			if (!ChessBoard->HasWhiteKingOrQueenSideRookMoved())
-			{
-				// if no piece is present one tile to the left
-				if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].ChessPieceOnTile)
-					// if one tile to the left isnt under attack
+								// if two tiles to the right isnt under attack
+								if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].ChessPieceOnTile)
+									ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex + 2]);
+
+			// if White queen side rook alive
+			if (ChessBoard->bIsWhiteQueenSideRookAlive)
+				// if white king and queen side rook have not moved
+				if (!ChessBoard->HasWhiteKingOrQueenSideRookMoved())
+					// if no piece is present one tile to the left
 					if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].ChessPieceOnTile)
-					//if (ChessBoard->ChessTilesUnderAttackByBlackPieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex - 1]) == INDEX_NONE)
-						// if no piece is present two tiles to the left
-						if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].ChessPieceOnTile)
-							// if two tiles to the left isnt under attack
+						// if one tile to the left isnt under attack
+						if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].ChessPieceOnTile)
+							// if no piece is present two tiles to the left
 							if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].ChessPieceOnTile)
-							//if (ChessBoard->ChessTilesUnderAttackByBlackPieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex - 2]) == INDEX_NONE)
-								// if no piece is present three tiles to the left
-								if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 3].ChessPieceOnTile)
-									ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex - 2]);
-			}
+								// if two tiles to the left isnt under attack
+								if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].ChessPieceOnTile)
+									// if no piece is present three tiles to the left
+									if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 3].ChessPieceOnTile)
+										ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex - 2]);
 		}
 	}
 	else
@@ -908,39 +904,35 @@ TArray<FChessTileInfo> AChessPiece::CalculateValidMoveTilesForKing(TArray<FChess
 		// if Black king is not under check
 		if (!ChessBoard->bIsBlackKingUnderCheck)
 		{
-			// if black king and king side rook have not moved
-			if (!ChessBoard->HasBlackKingOrKingSideRookMoved())
-			{
-				// if no piece is present one tile to the right
-				if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].ChessPieceOnTile)
-					// if one tile to the right isnt under attack
-					if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].bIsTileUnderAttackByWhitePiece)
-					//if (ChessBoard->ChessTilesUnderAttackByWhitePieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex + 1]) == INDEX_NONE)
-						// if no piece is present two tiles to the right
-						if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].ChessPieceOnTile)
-							// if two tiles to the right isnt under attack
-							if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].bIsTileUnderAttackByWhitePiece)
-							//if (ChessBoard->ChessTilesUnderAttackByWhitePieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex + 2]) == INDEX_NONE)
-								ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex + 2]);
-			}
+			// if black king side rook alive
+			if (ChessBoard->bIsBlackKingSideRookAlive)
+				// if black king and king side rook have not moved
+				if (!ChessBoard->HasBlackKingOrKingSideRookMoved())
+					// if no piece is present one tile to the right
+					if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].ChessPieceOnTile)
+						// if one tile to the right isnt under attack
+						if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 1].bIsTileUnderAttackByWhitePiece)
+							// if no piece is present two tiles to the right
+							if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].ChessPieceOnTile)
+								// if two tiles to the right isnt under attack
+								if (!Board[ChessPieceInfo.ChessPiecePositionIndex + 2].bIsTileUnderAttackByWhitePiece)
+									ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex + 2]);
 
-			// if black king and queen side rook have not moved
-			if (!ChessBoard->HasBlackKingOrQueenSideRookMoved())
-			{
-				// if no piece is present one tile to the left
-				if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].ChessPieceOnTile)
-					// if one tile to the left isnt under attack
-					if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].bIsTileUnderAttackByWhitePiece)
-					//if (ChessBoard->ChessTilesUnderAttackByWhitePieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex - 1]) == INDEX_NONE)
-						// if no piece is present two tiles to the left
-						if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].ChessPieceOnTile)
-							// if two tiles to the left isnt under attack
-							if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].bIsTileUnderAttackByWhitePiece)
-							//if (ChessBoard->ChessTilesUnderAttackByWhitePieces.Find(Board[ChessPieceInfo.ChessPiecePositionIndex - 2]) == INDEX_NONE)
-								// if no piece is present three tiles to the left
-								if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 3].ChessPieceOnTile)
-									ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex - 2]);
-			}
+			// if black queen side rook alive
+			if (ChessBoard->bIsBlackQueenSideRookAlive)
+				// if black king and queen side rook have not moved
+				if (!ChessBoard->HasBlackKingOrQueenSideRookMoved())
+					// if no piece is present one tile to the left
+					if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].ChessPieceOnTile)
+						// if one tile to the left isnt under attack
+						if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 1].bIsTileUnderAttackByWhitePiece)
+							// if no piece is present two tiles to the left
+							if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].ChessPieceOnTile)
+								// if two tiles to the left isnt under attack
+								if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 2].bIsTileUnderAttackByWhitePiece)
+									// if no piece is present three tiles to the left
+									if (!Board[ChessPieceInfo.ChessPiecePositionIndex - 3].ChessPieceOnTile)
+										ValidTiles.AddUnique(Board[ChessPieceInfo.ChessPiecePositionIndex - 2]);
 		}
 	}
 
