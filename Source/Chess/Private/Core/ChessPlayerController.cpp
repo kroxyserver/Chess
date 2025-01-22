@@ -56,7 +56,6 @@ void AChessPlayerController::SelectPiece()
 	if (!ChessGameMode)
 	{
 		PRINTSTRING(FColor::Red, "Game Mode is invalid in PlayerController");
-		//UE_LOG(LogTemp, Warning, TEXT("Game Mode is invalid in PlayerController"));
 		return;
 	}
 
@@ -64,7 +63,6 @@ void AChessPlayerController::SelectPiece()
 	if (!ChessBoard)
 	{
 		PRINTSTRING(FColor::Red, "ChessBoard is invalid in PlayerController");
-		//UE_LOG(LogTemp, Warning, TEXT("ChessBoard is invalid in PlayerController"));
 		return;
 	}
 
@@ -76,7 +74,7 @@ void AChessPlayerController::SelectPiece()
 	{
 		if (SelectedTile)
 		{
-			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo);
+			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
 			SelectedTile = nullptr;
 		}
 		return;
@@ -87,7 +85,7 @@ void AChessPlayerController::SelectPiece()
 	{
 		if (SelectedTile)
 		{
-			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo);
+			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
 			SelectedTile = nullptr;
 		}
 		return;
@@ -95,48 +93,60 @@ void AChessPlayerController::SelectPiece()
 
 	if (SelectedTile) // if a tile is selected already, proceed to moving piece on that tile
 	{
-		if (!SelectedTile->ChessTileInfo.ChessPieceOnTile)
+		if (SelectedTile->ChessTileInfo.ChessPieceOnTile.ChessPiecePositionIndex == -1 || !SelectedTile->ChessPieceOnTile)
 		{
-			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo);
+			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
 			SelectedTile = nullptr;
 			return PRINTSTRING(FColor::Red, "ChessPieceOnTile is Invalid");
 		}
 
 		if (HitTile == SelectedTile)
 		{
-			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo);
+			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
 			SelectedTile = nullptr;
 			return PRINTSTRING(FColor::Red, "HitTile same as SelectedTile");
 		}
 
 		if (!HitTile->ChessTileInfo.bIsHighlighted)
 		{
-			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo);
+			ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
 			SelectedTile = nullptr;
 			return PRINTSTRING(FColor::Red, "Tile not Highlighted");
 		}
 
-		if (HitTile->ChessTileInfo.ChessPieceOnTile) // if theres a piece on destination tile...
+		if (HitTile->ChessTileInfo.ChessPieceOnTile.ChessPiecePositionIndex > -1) // if theres a piece on destination tile...
 		{
 			// and if the piece is a friendly piece...
-			if (SelectedTile->ChessTileInfo.ChessPieceOnTile->ChessPieceInfo.bIsWhite == HitTile->ChessTileInfo.ChessPieceOnTile->ChessPieceInfo.bIsWhite)
-			{
+			if (SelectedTile->ChessTileInfo.ChessPieceOnTile.bIsWhite == HitTile->ChessTileInfo.ChessPieceOnTile.bIsWhite)
 				return PRINTSTRING(FColor::Red, "Tile is Occupied with a friendly Piece");
-			}
-			else // and if the piece is not a friendly piece...
-			{
-				HitTile->ChessTileInfo.ChessPieceOnTile->CapturePiece(); // capture piece
-			}
+			
+			HitTile->ChessPieceOnTile->CapturePiece(); // capture enemy piece
 		}
 
-		ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo);
+		ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
 
-		SelectedTile->ChessTileInfo.ChessPieceOnTile->MovePiece(HitTile);
-				
-		HitTile->ChessTileInfo.ChessPieceOnTile = SelectedTile->ChessTileInfo.ChessPieceOnTile;
-		HitTile->ChessTileInfo.ChessPieceOnTile->ChessPieceInfo.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
+		ChessBoard->MakeMove(SelectedTile, HitTile);
 
-		SelectedTile->ChessTileInfo.ChessPieceOnTile = nullptr;
+
+
+
+
+		//SelectedTile->ChessPieceOnTile->MovePiece(HitTile);
+
+		//ChessBoard->ChessBoardInfo.TilesInfo[HitTile->ChessTileInfo.ChessTilePositionIndex].ChessPieceOnTile = SelectedTile->ChessTileInfo.ChessPieceOnTile;
+		//HitTile->ChessTileInfo.ChessPieceOnTile = SelectedTile->ChessTileInfo.ChessPieceOnTile;
+		//HitTile->ChessPieceOnTile = SelectedTile->ChessPieceOnTile;
+
+		//ChessBoard->ChessBoardInfo.TilesInfo[HitTile->ChessTileInfo.ChessTilePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
+		//HitTile->ChessTileInfo.ChessPieceOnTile.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
+		//HitTile->ChessPieceOnTile->ChessPieceInfo.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
+
+		//ChessBoard->ChessBoardInfo.TilesInfo[SelectedTile->ChessTileInfo.ChessTilePositionIndex].ChessPieceOnTile = FChessPieceInfo();
+		//SelectedTile->ChessTileInfo.ChessPieceOnTile = FChessPieceInfo();
+		//SelectedTile->ChessPieceOnTile = nullptr;
+
+
+
 		SelectedTile = nullptr;
 
 		OnPieceMoved.Broadcast(ChessGameMode->bIsWhiteTurn);
@@ -145,21 +155,19 @@ void AChessPlayerController::SelectPiece()
 	}
 	else // if no tile has been selected already, highlight valid moves for the piece on that tile
 	{
-		if (!HitTile->ChessTileInfo.ChessPieceOnTile)
+		if (HitTile->ChessTileInfo.ChessPieceOnTile.ChessPiecePositionIndex == -1)
 		{
 			PRINTSTRING(FColor::Red, "Tile is Empty");
-			//UE_LOG(LogTemp, Warning, TEXT("Tile is Empty"));
 			return;
 		}
 
-		if (ChessGameMode->bIsWhiteTurn != HitTile->ChessTileInfo.ChessPieceOnTile->ChessPieceInfo.bIsWhite)
+		if (ChessGameMode->bIsWhiteTurn != HitTile->ChessTileInfo.ChessPieceOnTile.bIsWhite)
 		{
 			PRINTSTRING(FColor::Red, "Not friendly Piece");
-			//UE_LOG(LogTemp, Warning, TEXT("Not friendly Piece"));
 			return;
 		}
 
-		if (ChessBoard->HightlightValidMovesOnTile(true, HitTile->ChessTileInfo))
+		if (ChessBoard->HightlightValidMovesOnTile(true, HitTile->ChessTileInfo.ChessTilePositionIndex))
 			SelectedTile = HitTile;
 	}
 }

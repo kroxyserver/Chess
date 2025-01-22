@@ -80,7 +80,7 @@ void AChessGameMode::SwitchTurn()
 	
 	if (!ChessBoard) return PRINTSTRING(FColor::Red, "ChessBoard is Invalid in GameMode");
 
-	ChessBoard->GenerateAllValidMoves(bIsWhiteTurn);
+	ChessBoard->GenerateAllValidMoves(ChessBoard->ChessBoardInfo, bIsWhiteTurn);
 
 	switch (ChessGameModeType)
 	{
@@ -99,4 +99,6 @@ void AChessGameMode::SwitchTurn()
 	default:
 		break;
 	}
+
+	OnSwitchTurn.Broadcast();
 }

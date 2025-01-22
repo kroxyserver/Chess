@@ -4,54 +4,13 @@
 
 #include "CoreMinimal.h"
 
+#include "Miscellaneous/StructuresAndEnumerations.h"
+
 #include "GameFramework/Actor.h"
 
 #include "ChessTile.generated.h"
 
-class AChessBoard;
 class AChessPiece;
-
-USTRUCT(BlueprintType)
-struct FChessTileInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	AChessPiece* ChessPieceOnTile;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	int32 ChessTilePositionIndex;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsWhite;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsHighlighted;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsTileUnderAttackByWhitePiece;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsTileUnderAttackByBlackPiece;
-
-	FChessTileInfo() :
-		ChessPieceOnTile(nullptr),
-		ChessTilePositionIndex(-1),
-		bIsWhite(true),
-		bIsHighlighted(false),
-		bIsTileUnderAttackByWhitePiece(false),
-		bIsTileUnderAttackByBlackPiece(false) {}
-
-	bool operator==(const FChessTileInfo& Other) const
-	{
-		return ChessPieceOnTile == Other.ChessPieceOnTile && ChessTilePositionIndex == Other.ChessTilePositionIndex && bIsWhite == Other.bIsWhite && bIsHighlighted == Other.bIsHighlighted && bIsTileUnderAttackByWhitePiece == Other.bIsTileUnderAttackByWhitePiece && bIsTileUnderAttackByBlackPiece == Other.bIsTileUnderAttackByBlackPiece;
-	}
-
-	FVector2D GetChessTilePositionFromIndex()
-	{
-		return FVector2D(ChessTilePositionIndex / 8, ChessTilePositionIndex % 8);
-	}
-};
 
 UCLASS()
 class CHESS_API AChessTile : public AActor
@@ -94,6 +53,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Tile")
 	FChessTileInfo ChessTileInfo;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Tile")
+	AChessPiece* ChessPieceOnTile = nullptr;
 
 #pragma endregion
 };

@@ -15,6 +15,8 @@ class AChessPlayer;
 class AChessPlayerController;
 class AChessTile;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSwitchTurn);
+
 UCLASS()
 class CHESS_API AChessGameMode : public AGameMode
 {
@@ -55,6 +57,9 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "+Chess|GameMode")
     bool bIsWhiteTurn;
+
+    UPROPERTY(BlueprintAssignable, Category = "+Chess|GameMode")
+    FOnSwitchTurn OnSwitchTurn;
 
 #pragma endregion
 };

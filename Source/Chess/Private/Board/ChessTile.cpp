@@ -2,8 +2,6 @@
 
 #include "Board/ChessTile.h"
 
-#include "Board/ChessBoard.h"
-#include "Board/ChessPiece.h"
 #include "Core/ChessPlayerController.h"
 
 #include "Kismet/GameplayStatics.h"

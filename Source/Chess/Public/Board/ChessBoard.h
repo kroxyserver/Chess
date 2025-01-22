@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+#include "Miscellaneous/StructuresAndEnumerations.h"
+
 #include "GameFramework/Actor.h"
 
 #include "ChessBoard.generated.h"
@@ -11,8 +13,6 @@
 class AChessPiece;
 class AChessTile;
 class UChessBoardData;
-struct FChessPieceInfo;
-struct FChessTileInfo;
 
 UCLASS()
 class CHESS_API AChessBoard : public AActor
@@ -40,22 +40,39 @@ public:
 
 	AChessPiece* SpawnChessPiece(FChessPieceInfo ChessPieceInfo);
 
-	void UpdateAttackStatusOfTiles();
+	bool HightlightValidMovesOnTile(bool bHighlight, int32 TileIndex);	
 
-	void ClearAllValidMoves();
+	void GenerateAllValidMoves(FChessBoardInfo& BoardInfo, bool bIsWhiteTurn);
 
-	UFUNCTION()
-	void GenerateAllValidMoves(bool bIsWhiteTurn);
+	void ClearAllValidMoves(FChessBoardInfo& BoardInfo);
 
-	bool HightlightValidMovesOnTile(bool bHighlight, FChessTileInfo ChessTileInfo);
-	
-	FORCEINLINE AChessTile* GetChessTileAtPosition(FVector2D Position) const
-	{
-		if (Position.X < 0 || Position.Y < 0 || Position.X > 7 || Position.Y > 7) return nullptr;
-		if (!ChessTiles.IsValidIndex((Position.X * 8 + Position.Y))) return nullptr;
-		return ChessTiles[(Position.X * 8 + Position.Y)];
-	}
+	void UpdateAttackStatusOfTiles(FChessBoardInfo& BoardInfo);
 
+	void UpdateTilesUnderAttackByPiece(FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	void CalculateValidMovesForPiece(FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> CalculateValidMoveTilesForKing(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> CalculateValidMoveTilesForQueen(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> CalculateValidMoveTilesForBishop(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> CalculateValidMoveTilesForKnight(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> CalculateValidMoveTilesForRook(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> CalculateValidMoveTilesForPawn(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece);
+
+	TArray<FChessTileInfo> FilterMovesForCheck(FChessBoardInfo BoardInfo, FChessPieceInfo& Piece, TArray<FChessTileInfo> ValidMovesBeforeFilteration);
+
+	void SimulateMove(FChessBoardInfo& BoardInfo, FChessPieceInfo Piece, int32 ToPosition);
+
+	void MakeMove(AChessTile* StartTile, AChessTile* EndTile);
+
+
+	// Check Functions
+	bool IsKingInCheck(const FChessBoardInfo& BoardInfo, bool bIsWhiteKing);
 
 
 	// Enpassant Functions
@@ -65,32 +82,31 @@ public:
 	void DisableEnpassant(bool bIsWhite);
 
 
+	FORCEINLINE bool IsPositionWithinBounds(FVector2D Position) { return Position.X >= 0 && Position.X < 8 && Position.Y >= 0 && Position.Y < 8; }
 
-	// Check Functions
-	bool IsKingInCheck(bool bIsWhiteKing, const TArray<FChessTileInfo>& BoardLayout, int32 OutEnpassantTarget) const;
+	FORCEINLINE AChessTile* GetChessTileAtPosition(FVector2D Position) const
+	{
+		if (Position.X < 0 || Position.Y < 0 || Position.X > 7 || Position.Y > 7) return nullptr;
+		if (!ChessTiles.IsValidIndex((Position.X * 8 + Position.Y))) return nullptr;
+		return ChessTiles[(Position.X * 8 + Position.Y)];
+	}
+
+	FORCEINLINE AChessTile* GetChessPieceAtPosition(FVector2D Position) const
+	{
+		if (Position.X < 0 || Position.Y < 0 || Position.X > 7 || Position.Y > 7) return nullptr;
+		if (!ChessTiles.IsValidIndex((Position.X * 8 + Position.Y))) return nullptr;
+		return ChessTiles[(Position.X * 8 + Position.Y)];
+	}
 
 
-
-	// Castling Functions
-	FORCEINLINE bool HasWhiteKingOrKingSideRookMoved()	const { return (bHasWhiteKingMoved || bHasWhiteKingSideRookMoved); }
-	FORCEINLINE bool HasWhiteKingOrQueenSideRookMoved() const { return (bHasWhiteKingMoved || bHasWhiteQueenSideRookMoved); }
-	FORCEINLINE bool HasBlackKingOrKingSideRookMoved() const { return (bHasBlackKingMoved || bHasBlackKingSideRookMoved); }
-	FORCEINLINE bool HasBlackKingOrQueenSideRookMoved() const { return (bHasBlackKingMoved || bHasBlackQueenSideRookMoved); }
+	UFUNCTION(BlueprintCallable, Category = "+Chess|Board")
+	int32 MoveGenerationTest(FChessBoardInfo BoardInfo, bool bIsWhiteTurn, int32 Depth);
 
 #pragma endregion
 
 #pragma region VARIABLES
 
 public:
-	TArray<uint8> TileColourAtIndex = { 0, 1, 0, 1, 0, 1, 0, 1,
-										1, 0, 1, 0, 1, 0, 1, 0,
-										0, 1, 0, 1, 0, 1, 0, 1,
-										1, 0, 1, 0, 1, 0, 1, 0,
-										0, 1, 0, 1, 0, 1, 0, 1,
-										1, 0, 1, 0, 1, 0, 1, 0,
-										0, 1, 0, 1, 0, 1, 0, 1,
-										1, 0, 1, 0, 1, 0, 1, 0 };
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Board")
 	UChessBoardData* ChessBoardData = nullptr;
 
@@ -106,17 +122,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
 	TArray<AChessPiece*> BlackChessPieces;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
-	TArray<FChessTileInfo> ChessBoardLayout;
-
 	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
 	TArray<FChessTileInfo> HighlightedTiles;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
-	TArray<FChessTileInfo> ChessTilesUnderAttackByWhitePieces;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
-	TArray<FChessTileInfo> ChessTilesUnderAttackByBlackPieces;
 
 	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
 	TArray<FVector> ChessTileLocations;
@@ -124,55 +131,23 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
 	TArray<AChessTile*> ChessTiles;
 
-
-	// Check variables
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
-	bool bIsWhiteKingUnderCheck = false;
+	FChessBoardInfo ChessBoardInfo;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
-	bool bIsBlackKingUnderCheck = false;
-
-
-
-	// EnPassant Variables
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
-	int32 EnpassantTileIndex = -1;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board")
+	// Enpassant Variables
+	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
 	AChessPiece* EnpassantPawn = nullptr;
 
-	
-	
-	// Castling variables
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bIsWhiteKingSideRookAlive = true;
+private:
+	TArray<FVector2D> KingMovePositionTileOffsets = { FVector2D(1, -1), FVector2D(1, 0), FVector2D(1, 1), FVector2D(0, 1), FVector2D(-1, 1), FVector2D(-1, 0), FVector2D(-1, -1), FVector2D(0, -1) };
 
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bIsBlackKingSideRookAlive = true;
+	TArray<FVector2D> KnightMovePositionTileOffsets = { FVector2D(2, -1), FVector2D(2, 1), FVector2D(1, 2), FVector2D(-1, 2), FVector2D(-2, 1), FVector2D(-2, -1), FVector2D(-1, -2), FVector2D(1, -2) };
 
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bIsWhiteQueenSideRookAlive = true;
+	TArray<FVector2D> BishopMovePositionDirections = { FVector2D(1, -1), FVector2D(1, 1), FVector2D(-1, 1), FVector2D(-1, -1) };
 
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bIsBlackQueenSideRookAlive = true;
+	TArray<FVector2D> RookMovePositionDirections = { FVector2D(1, 0), FVector2D(0, 1), FVector2D(-1, 0), FVector2D(0, -1) };
 
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bHasWhiteKingMoved = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bHasBlackKingMoved = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bHasWhiteKingSideRookMoved = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bHasBlackKingSideRookMoved = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bHasWhiteQueenSideRookMoved = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
-	bool bHasBlackQueenSideRookMoved = false;
+	TArray<FVector2D> QueenMovePositionDirections = KingMovePositionTileOffsets;
 
 #pragma endregion
 };

@@ -51,10 +51,4 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Mesh|BlackPieces")
 	UStaticMesh* BlackPawn;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|WhitePieces")
-	TArray<FChessPieceInfo> WhiteChessPiecesInfo;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|BlackPieces")
-	TArray<FChessPieceInfo> BlackChessPiecesInfo;
 };
