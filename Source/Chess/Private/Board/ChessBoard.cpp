@@ -14,7 +14,9 @@
 
 AChessBoard::AChessBoard() :
 	ChessTileClass(AChessTile::StaticClass()),
-	ChessPieceClass(AChessPiece::StaticClass())
+	ChessPieceClass(AChessPiece::StaticClass()),
+	NumOfMovesSinceLastCapture(0),
+	MaxSearchDepthForAIMove(3)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -26,20 +28,37 @@ AChessBoard::AChessBoard() :
 	if (ChessBoardDataAsset.Succeeded()) ChessBoardData = ChessBoardDataAsset.Object;
 }
 
+void AChessBoard::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+}
+
 void AChessBoard::BeginPlay()
 {
 	Super::BeginPlay();
 
+	InitializeBoard();
+}
+
+void AChessBoard::InitializeBoard()
+{
+	// Reset all values
+	ChessBoardInfo = FChessBoardInfo();
+	ChessTileLocations.Empty();
+
+	for (AChessTile* Tile : ChessTiles) if (Tile) Tile->Destroy();
+	ChessTiles.Empty();
+	
+	for (AChessPiece* Piece : WhiteChessPieces) if (Piece) Piece->Destroy();
+	WhiteChessPieces.Empty();
+	
+	for (AChessPiece* Piece : BlackChessPieces) if (Piece) Piece->Destroy();
+	BlackChessPieces.Empty();
+	
+	// Initialize Board
 	CreateBoard();
 
 	SetupBoard();
-
-	GenerateAllValidMoves(ChessBoardInfo, true);
-}
-
-void AChessBoard::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
 }
 
 void AChessBoard::CreateBoard()
@@ -87,10 +106,28 @@ void AChessBoard::CreateBoard()
 
 void AChessBoard::SetupBoard()
 {
-#pragma region Initialize Chess Pieces Information
+	/*
+	if (!ParseFEN(DefaultFEN, ChessBoardInfo)) return PRINTSTRING(FColor::Red, "Invalid FEN String");
+
+	// Spawn Chess Pieces
+	for (FChessTileInfo& TileInfo : ChessBoardInfo.TilesInfo)
+	{
+		if (TileInfo.ChessPieceOnTile.ChessPiecePositionIndex == -1) continue;
+
+		if (TileInfo.ChessPieceOnTile.bIsWhite)
+		{
+			WhiteChessPieces.AddUnique(SpawnChessPiece(TileInfo.ChessPieceOnTile));
+		}
+		else
+		{
+			BlackChessPieces.AddUnique(SpawnChessPiece(TileInfo.ChessPieceOnTile));
+		}
+	}
+	*/
+
 	TArray<FChessPieceInfo> WhiteChessPiecesInfo;
 	TArray<FChessPieceInfo> BlackChessPiecesInfo;
-
+	
 	// Pawns
 	for (int32 i = 8; i <= 15; i++)	WhiteChessPiecesInfo.AddUnique(FChessPieceInfo(true, EChessPieceType::Pawn, EChessPieceSide::None, i, TArray<int32>()));
 
@@ -126,7 +163,6 @@ void AChessBoard::SetupBoard()
 	WhiteChessPiecesInfo.AddUnique(FChessPieceInfo(true, EChessPieceType::King, EChessPieceSide::None, 4, TArray<int32>()));
 
 	BlackChessPiecesInfo.AddUnique(FChessPieceInfo(false, EChessPieceType::King, EChessPieceSide::None, 60, TArray<int32>()));
-#pragma endregion
 
 	// Spawn White Chess Pieces
 	for (int32 i = 0; i < WhiteChessPiecesInfo.Num(); i++)
@@ -139,6 +175,125 @@ void AChessBoard::SetupBoard()
 	{
 		BlackChessPieces.AddUnique(SpawnChessPiece(BlackChessPiecesInfo[i]));
 	}
+}
+
+bool AChessBoard::ParseFEN(const FString& FEN, FChessBoardInfo& BoardInfo)
+{
+	TMap<TCHAR, EChessPieceType> PieceTypeMap = {
+		{ 'K', EChessPieceType::King }, { 'Q', EChessPieceType::Queen },
+		{ 'R', EChessPieceType::Rook }, { 'B', EChessPieceType::Bishop },
+		{ 'N', EChessPieceType::Knight }, { 'P', EChessPieceType::Pawn }
+	};
+
+	TArray<FString> FENSections;
+	FEN.ParseIntoArray(FENSections, TEXT(" "), true);
+	if (FENSections.Num() == 0) return false; // Invalid FEN
+
+	// FEN section 1 represents board
+	int32 BoardIndex = 0;
+
+	TArray<FString> BoardRanks;
+	FENSections[0].ParseIntoArray(BoardRanks, TEXT("/"), true);
+
+	for (int32 Rank = BoardRanks.Num() - 1; Rank >= 0; Rank--)
+	{
+		FString BoardRank = BoardRanks[Rank];
+		
+		for (int32 File = 0; File < BoardRank.Len(); File++)
+		{
+			TCHAR Symbol = BoardRank[File];
+
+			if (FChar::IsDigit(Symbol)) // Empty squares
+			{
+				BoardIndex += Symbol - '0';
+			}
+			else // Chess piece
+			{
+				bool bIsWhite = FChar::IsUpper(Symbol);
+				EChessPieceType PieceType = PieceTypeMap[FChar::ToUpper(Symbol)];
+
+				FChessPieceInfo NewPiece(
+					bIsWhite,
+					PieceType,
+					EChessPieceSide::None, // Set side later if needed
+					BoardIndex,
+					TArray<int32>() // Empty valid moves initially
+				);
+
+				BoardInfo.TilesInfo[BoardIndex].ChessPieceOnTile = NewPiece;
+				BoardIndex++;
+			}
+		}
+	}
+
+
+	/*
+	FString BoardState = FENSections[0];
+	int32 BoardIndex = 0;
+
+	for (int32 i = 0; i < BoardState.Len(); i++)
+	{
+		TCHAR Symbol = BoardState[i];
+
+		if (Symbol == '/') continue; // Skip row separators
+
+		if (FChar::IsDigit(Symbol)) // Empty squares
+		{
+			BoardIndex += Symbol - '0';
+		}
+		else // Chess piece
+		{
+			bool bIsWhite = FChar::IsUpper(Symbol);
+			EChessPieceType PieceType = PieceTypeMap[FChar::ToUpper(Symbol)];
+
+			FChessPieceInfo NewPiece(
+				bIsWhite,
+				PieceType,
+				EChessPieceSide::None, // Set side later if needed
+				BoardIndex,
+				TArray<int32>() // Empty valid moves initially
+			);
+
+			BoardInfo.TilesInfo[BoardIndex].ChessPieceOnTile = NewPiece;
+			BoardIndex++;
+		}
+	}
+	*/
+
+	// FEN section 2 represents whose move it is 'w' for white 'b' for black
+	BoardInfo.bIsWhiteTurn = (FENSections[1] == "w");
+
+	// FEN section 3 represents Castiling Rights
+	FString CastlingRights = FENSections[2];
+	bool bCanWhiteCastleKingSide = CastlingRights.Contains("K");
+	bool bCanWhiteCastleQueenSide = CastlingRights.Contains("Q");
+	bool bCanBlackCastleKingSide = CastlingRights.Contains("k");
+	bool bCanBlackCastleQueenSide = CastlingRights.Contains("q");
+
+	// TODO : UPDATE CASTLING CODE AND REDUCE NUM OF VARIABLES TO TRACK CASTLING
+
+	// FEN section 1 represents Enpassant Target Square
+	FString EnpassantTarget = FENSections[3];
+	int32 EnpassantIndex = -1;
+	FChessPieceInfo EnpassantPiece = FChessPieceInfo();
+	
+	if (EnpassantTarget != "-")
+	{
+		int File = EnpassantTarget[0] - 'a';
+		int Rank = EnpassantTarget[1] - '1';
+		EnpassantIndex = Rank * 8 + File;
+	}
+	
+	if (EnpassantIndex > -1)
+	{
+		EnpassantPiece = BoardInfo.TilesInfo[BoardInfo.bIsWhiteTurn ? EnpassantIndex - 8 : EnpassantIndex + 8].ChessPieceOnTile;
+		if (EnpassantPiece.ChessPiecePositionIndex == -1) EnpassantPiece = FChessPieceInfo();
+	}
+
+	BoardInfo.EnpassantPawn = EnpassantPiece;
+	BoardInfo.EnpassantTileIndex = EnpassantIndex;
+
+	return true;
 }
 
 AChessPiece* AChessBoard::SpawnChessPiece(FChessPieceInfo ChessPieceInfo)
@@ -156,15 +311,6 @@ AChessPiece* AChessBoard::SpawnChessPiece(FChessPieceInfo ChessPieceInfo)
 		ChessTiles[ChessPieceInfo.ChessPiecePositionIndex]->ChessPieceOnTile = ChessPiece;
 
 		ChessBoardInfo.TilesInfo[ChessPieceInfo.ChessPiecePositionIndex].ChessPieceOnTile = ChessPieceInfo;
-
-		//if (ChessPieceInfo.bIsWhite)
-		//{
-		//	ChessBoardInfo.WhitePiecesInfo.AddUnique(ChessPieceInfo);
-		//}
-		//else
-		//{
-		//	ChessBoardInfo.BlackPiecesInfo.AddUnique(ChessPieceInfo);
-		//}
 	}
 
 	return ChessPiece;
@@ -197,7 +343,7 @@ bool AChessBoard::HightlightValidMovesOnTile(bool bHighlight, int32 TileIndex)
 	return true;
 }
 
-void AChessBoard::GenerateAllValidMoves(FChessBoardInfo& BoardInfo, bool bIsWhiteTurn)
+void AChessBoard::GenerateAllValidMoves(FChessBoardInfo& BoardInfo, bool bIsWhiteTurn, bool bGenerateOnlyCaptures)
 {
 	ClearAllValidMoves(BoardInfo);
 
@@ -206,32 +352,7 @@ void AChessBoard::GenerateAllValidMoves(FChessBoardInfo& BoardInfo, bool bIsWhit
 	for (FChessTileInfo& Tile : BoardInfo.TilesInfo)
 		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1) // if theres a piece on the tile
 			if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn) // if piece colour is same as current player turn
-				CalculateValidMovesForPiece(BoardInfo, Tile.ChessPieceOnTile);
-
-	//if (bIsWhiteTurn)
-	//{
-	//	// Calculate White Pieces Moves
-	//	for (FChessPieceInfo& WhitePiece : BoardInfo.WhitePiecesInfo)
-	//	{
-	//		if (WhitePiece.ChessPiecePositionIndex > -1)
-	//		{
-	//			CalculateValidMovesForPiece(BoardInfo, WhitePiece);
-	//			BoardInfo.TilesInfo[WhitePiece.ChessPiecePositionIndex].ChessPieceOnTile = WhitePiece;
-	//		}
-	//	}
-	//}
-	//else
-	//{
-	//	// Calculate Black Pieces Moves
-	//	for (FChessPieceInfo& BlackPiece : BoardInfo.BlackPiecesInfo)
-	//	{
-	//		if (BlackPiece.ChessPiecePositionIndex > -1)
-	//		{
-	//			CalculateValidMovesForPiece(BoardInfo, BlackPiece);
-	//			BoardInfo.TilesInfo[BlackPiece.ChessPiecePositionIndex].ChessPieceOnTile = BlackPiece;
-	//		}
-	//	}
-	//}
+				CalculateValidMovesForPiece(BoardInfo, Tile.ChessPieceOnTile, bGenerateOnlyCaptures);
 }
 
 void AChessBoard::ClearAllValidMoves(FChessBoardInfo& BoardInfo)
@@ -243,24 +364,6 @@ void AChessBoard::ClearAllValidMoves(FChessBoardInfo& BoardInfo)
 			Tile.ChessPieceOnTile.ValidMoves.Empty();
 		}
 	}
-
-	//for (FChessPieceInfo& WhitePiece : BoardInfo.WhitePiecesInfo)
-	//{
-	//	if (WhitePiece.ChessPiecePositionIndex > -1)
-	//	{
-	//		WhitePiece.ValidMoves.Empty();
-	//		BoardInfo.TilesInfo[WhitePiece.ChessPiecePositionIndex].ChessPieceOnTile.ValidMoves.Empty();
-	//	}
-	//}
-	//
-	//for (FChessPieceInfo& BlackPiece : BoardInfo.BlackPiecesInfo)
-	//{
-	//	if (BlackPiece.ChessPiecePositionIndex > -1)
-	//	{
-	//		BlackPiece.ValidMoves.Empty();
-	//		BoardInfo.TilesInfo[BlackPiece.ChessPiecePositionIndex].ChessPieceOnTile.ValidMoves.Empty();
-	//	}
-	//}
 }
 
 void AChessBoard::UpdateAttackStatusOfTiles(FChessBoardInfo& BoardInfo)
@@ -272,15 +375,32 @@ void AChessBoard::UpdateAttackStatusOfTiles(FChessBoardInfo& BoardInfo)
 		Tile.bIsTileUnderAttackByBlackPiece = false;
 	}
 
+	BoardInfo.bIsWhiteKingUnderCheck = false;
+	BoardInfo.bIsBlackKingUnderCheck = false;
+
+
+
 	for (FChessTileInfo& Tile : BoardInfo.TilesInfo)
 		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1) // if theres a piece on the tile
 			UpdateTilesUnderAttackByPiece(BoardInfo, Tile.ChessPieceOnTile);
 
-	//for (FChessPieceInfo& WhitePiece : BoardInfo.WhitePiecesInfo)
-	//	if (WhitePiece.ChessPiecePositionIndex > -1) UpdateTilesUnderAttackByPiece(BoardInfo, WhitePiece);
+	for (FChessTileInfo& Tile : BoardInfo.TilesInfo)
+	{
+		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex == -1) continue; // if theres no piece on the tile
 
-	//for (FChessPieceInfo& BlackPiece : BoardInfo.BlackPiecesInfo)
-	//	if (BlackPiece.ChessPiecePositionIndex > -1) UpdateTilesUnderAttackByPiece(BoardInfo, BlackPiece);
+		if (Tile.ChessPieceOnTile.ChessPieceType != EChessPieceType::King) continue; // if th piece on tile is not a king
+
+		if (Tile.ChessPieceOnTile.bIsWhite)
+		{
+			// if White kings tile is under attack by black piece
+			BoardInfo.bIsWhiteKingUnderCheck = Tile.bIsTileUnderAttackByBlackPiece;
+		}
+		else
+		{
+			// if Black kings tile is under attack by white piece
+			BoardInfo.bIsBlackKingUnderCheck = Tile.bIsTileUnderAttackByWhitePiece;
+		}
+	}
 }
 
 void AChessBoard::UpdateTilesUnderAttackByPiece(FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
@@ -422,7 +542,7 @@ void AChessBoard::UpdateTilesUnderAttackByPiece(FChessBoardInfo& BoardInfo, FChe
 	{
 		if (Piece.bIsWhite)
 		{
-			// Diagonal Captures
+			// Diagonal tiles under attack
 			if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(1, -1)))
 			{
 				// if a piece is present on diagonal tile
@@ -466,7 +586,7 @@ void AChessBoard::UpdateTilesUnderAttackByPiece(FChessBoardInfo& BoardInfo, FChe
 		}
 		else
 		{
-			// Diagonal Captures
+			// Diagonal tiles under attack
 			if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(-1, -1)))
 			{
 				// if a piece is present on diagonal tile
@@ -523,29 +643,29 @@ void AChessBoard::UpdateTilesUnderAttackByPiece(FChessBoardInfo& BoardInfo, FChe
 	}
 }
 
-void AChessBoard::CalculateValidMovesForPiece(FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+void AChessBoard::CalculateValidMovesForPiece(FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidMovesBeforeFilteringForCheck;
 
 	switch (Piece.ChessPieceType)
 	{
 		case EChessPieceType::King:
-			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForKing(BoardInfo, Piece);
+			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForKing(BoardInfo, Piece, bGenerateOnlyCaptures);
 			break;
 		case EChessPieceType::Queen:
-			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForQueen(BoardInfo, Piece);
+			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForQueen(BoardInfo, Piece, bGenerateOnlyCaptures);
 			break;
 		case EChessPieceType::Bishop:
-			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForBishop(BoardInfo, Piece);
+			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForBishop(BoardInfo, Piece, bGenerateOnlyCaptures);
 			break;
 		case EChessPieceType::Knight:
-			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForKnight(BoardInfo, Piece);
+			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForKnight(BoardInfo, Piece, bGenerateOnlyCaptures);
 			break;
 		case EChessPieceType::Rook:
-			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForRook(BoardInfo, Piece);
+			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForRook(BoardInfo, Piece, bGenerateOnlyCaptures);
 			break;
 		case EChessPieceType::Pawn:
-			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForPawn(BoardInfo, Piece);
+			ValidMovesBeforeFilteringForCheck = CalculateValidMoveTilesForPawn(BoardInfo, Piece, bGenerateOnlyCaptures);
 			break;
 		default:
 			break;
@@ -554,10 +674,11 @@ void AChessBoard::CalculateValidMovesForPiece(FChessBoardInfo& BoardInfo, FChess
 	for (FChessTileInfo& ValidTile : FilterMovesForCheck(BoardInfo, Piece, ValidMovesBeforeFilteringForCheck))
 		Piece.ValidMoves.Add(ValidTile.ChessTilePositionIndex);
 		
-	BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex].ChessPieceOnTile = Piece;
+	if (Piece.ChessPiecePositionIndex > -1) BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex].ChessPieceOnTile = Piece;
+	else PRINTSTRING(FColor::Red, "ChessPiecePositionIndex is -1 in CalculateValidMovesForPiece(), ChessBoard.cpp");
 }
 
-TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKing(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKing(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidTiles;
 		
@@ -569,11 +690,20 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKing(const FChessB
 		if (IsPositionWithinBounds(RelativePosition))
 		{
 			int32 RelativePositionIndex = RelativePosition.X * 8 + RelativePosition.Y;
-		
-			// ignore tile if friendly piece is on that tile
+
+			// if theres a piece on that tile...
 			if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex > -1)
+			{
+				// ignore if friendly piece
 				if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.bIsWhite == Piece.bIsWhite)
 					continue;
+			}
+			else // if no piece is on that tile...
+			{
+				// and generate only captures is true, then ignore tile
+				if (bGenerateOnlyCaptures)
+					continue;
+			}
 		
 			// ignore tile if its is under attack by enemy piece
 			if ((Piece.bIsWhite)
@@ -584,7 +714,9 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKing(const FChessB
 			ValidTiles.Add(BoardInfo.TilesInfo[RelativePositionIndex]);
 		}
 	}
-		
+
+	if (bGenerateOnlyCaptures) return ValidTiles;
+
 	// Castling Moves if available
 	if (Piece.bIsWhite)
 	{
@@ -662,7 +794,7 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKing(const FChessB
 	return ValidTiles;
 }
 
-TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForQueen(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForQueen(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidTiles;
 		
@@ -684,8 +816,9 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForQueen(const FChess
 		
 					break;
 				}
-		
-				ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
+
+				if (!bGenerateOnlyCaptures)
+					ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
 			}
 		}
 	}
@@ -693,7 +826,7 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForQueen(const FChess
 	return ValidTiles;
 }
 
-TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForBishop(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForBishop(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidTiles;
 
@@ -716,7 +849,8 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForBishop(const FChes
 					break;
 				}
 
-				ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
+				if (!bGenerateOnlyCaptures)
+					ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
 			}
 		}
 	}
@@ -724,7 +858,7 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForBishop(const FChes
 	return ValidTiles;
 }
 
-TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKnight(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKnight(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidTiles;
 		
@@ -734,20 +868,31 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForKnight(const FChes
 		if (IsPositionWithinBounds(RelativePosition))
 		{
 			int32 RelativePositionIndex = RelativePosition.X * 8 + RelativePosition.Y;
-	
-			// ignore tile if friendly piece is on that tile
-			if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex > -1)
-				if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.bIsWhite == Piece.bIsWhite)
-					continue;
 
-			ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
+			if (bGenerateOnlyCaptures)
+			{
+				// if a piece is on that tile...
+				if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex > -1)
+					// and if its an opponent piece
+					if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.bIsWhite != Piece.bIsWhite)
+						ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
+			}
+			else
+			{
+				// ignore tile if friendly piece is on that tile
+				if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex > -1)
+					if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.bIsWhite == Piece.bIsWhite)
+						continue;
+
+				ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
+			}
 		}
 	}
 		
 	return ValidTiles;
 }
 
-TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForRook(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForRook(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidTiles;
 
@@ -770,7 +915,8 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForRook(const FChessB
 					break;
 				}
 
-				ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
+				if (!bGenerateOnlyCaptures)
+					ValidTiles.AddUnique(BoardInfo.TilesInfo[RelativePositionIndex]);
 			}
 		}
 	}
@@ -778,20 +924,23 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForRook(const FChessB
 	return ValidTiles;
 }
 
-TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForPawn(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece)
+TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForPawn(const FChessBoardInfo& BoardInfo, FChessPieceInfo& Piece, bool bGenerateOnlyCaptures)
 {
 	TArray<FChessTileInfo> ValidTiles;
 		
 	if (Piece.bIsWhite)
 	{
-		if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(1, 0)))
-			if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
-				ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 8]);
+		if (!bGenerateOnlyCaptures)
+		{
+			if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(1, 0)))
+				if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
+					ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 8]);
 	
-		if (Piece.GetChessPiecePositionFromIndex().X == 1 && IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(2, 0)))
-			if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
-				if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 16].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in two tiles front
-					ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 16]);
+			if (Piece.GetChessPiecePositionFromIndex().X == 1 && IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(2, 0)))
+				if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
+					if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 16].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in two tiles front
+						ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex + 16]);
+		}
 	
 		// Diagonal Captures
 		if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(1, -1)))
@@ -817,15 +966,18 @@ TArray<FChessTileInfo> AChessBoard::CalculateValidMoveTilesForPawn(const FChessB
 	}
 	else
 	{
-		if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(-1, 0)))
-			if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
-				ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8]);
+		if (!bGenerateOnlyCaptures)
+		{
+			if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(-1, 0)))
+				if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
+					ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8]);
 	
-		if (Piece.GetChessPiecePositionFromIndex().X == 6 && IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(-2, 0)))
-			if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
-				if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 16].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in two tiles front
-					ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 16]);
-	
+			if (Piece.GetChessPiecePositionFromIndex().X == 6 && IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(-2, 0)))
+				if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in one tile front
+					if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 16].ChessPieceOnTile.ChessPiecePositionIndex == -1) // if no piece is present in two tiles front
+						ValidTiles.AddUnique(BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 16]);
+		}
+
 		// Diagonal Captures
 		if (IsPositionWithinBounds(Piece.GetChessPiecePositionFromIndex() + FVector2D(-1, 1)))
 			if (BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex - 8 + 1].ChessPieceOnTile.ChessPiecePositionIndex > -1) // if a piece on diagonal tile present then make it a valid move position
@@ -978,68 +1130,27 @@ void AChessBoard::SimulateMove(FChessBoardInfo& BoardInfo, FChessPieceInfo Piece
 	default:
 		break;
 	}
-
-	/*FChessTileInfo& FromTile = BoardInfo.TilesInfo[Piece.ChessPiecePositionIndex];
-	FChessTileInfo& ToTile = BoardInfo.TilesInfo[ToPosition];
-
-	// Move the piece to the target tile
-	ToTile.ChessPieceOnTile = FromTile.ChessPieceOnTile;
-	FromTile.ChessPieceOnTile = FChessPieceInfo(); // Clear the original tile
-
-	// Handle en passant captures
-	if (Piece.ChessPieceType == EChessPieceType::Pawn && ToPosition == BoardInfo.EnpassantTileIndex)
-	{
-		// Determine the captured pawn's position
-		int32 CapturedPawnPosition = Piece.bIsWhite ? ToPosition - 8 : ToPosition + 8;
-		BoardInfo.TilesInfo[CapturedPawnPosition] = FChessTileInfo(); // Remove the captured pawn
-	}
-
-	// Update en passant target
-	if (Piece.ChessPieceType == EChessPieceType::Pawn && FMath::Abs(ToPosition - Piece.ChessPiecePositionIndex) == 16)
-	{
-		// Set the en passant target to the square behind the pawn
-		BoardInfo.EnpassantTileIndex = Piece.bIsWhite ? Piece.ChessPiecePositionIndex + 8 : Piece.ChessPiecePositionIndex - 8;
-		BoardInfo.EnpassantPawn = Piece;
-	}
-	else
-	{
-		// Clear the en passant target
-		BoardInfo.EnpassantTileIndex = -1;
-		BoardInfo.EnpassantPawn = FChessPieceInfo();
-	}
-
-	// Handle castling (if the king moves two squares)
-	if (Piece.ChessPieceType == EChessPieceType::King && FMath::Abs(ToPosition - Piece.ChessPiecePositionIndex) == 2)
-	{
-		if (ToPosition > Piece.ChessPiecePositionIndex)
-		{
-			// King-side castling
-			BoardInfo.TilesInfo[ToPosition - 1] = BoardInfo.TilesInfo[ToPosition + 1]; // Move the rook
-			BoardInfo.TilesInfo[ToPosition + 1] = FChessTileInfo(); // Clear the original rook square
-		}
-		else
-		{
-			// Queen-side castling
-			BoardInfo.TilesInfo[ToPosition + 1] = BoardInfo.TilesInfo[ToPosition - 2]; // Move the rook
-			BoardInfo.TilesInfo[ToPosition - 2] = FChessTileInfo(); // Clear the original rook square
-		}
-	}
-
-	// Handle pawn promotion (if a pawn reaches the opposite end of the board)
-	if (Piece.ChessPieceType == EChessPieceType::Pawn && (ToPosition < 8 || ToPosition >= 56))
-	{
-		// Promote to a queen (default behavior)
-		Piece.ChessPieceType = EChessPieceType::Queen;
-	}*/
 }
 
-void AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile)
+float AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile, bool bIsAIMove)
 {
-	if (!StartTile) return PRINTSTRING(FColor::Red, "StartTile is INVALID in ChessBoard");
-	if (!EndTile) return PRINTSTRING(FColor::Red, "EndTile is INVALID in ChessBoard");
+	if (!StartTile)
+	{
+		PRINTSTRING(FColor::Red, "StartTile is INVALID in ChessBoard");
+		return 1.f;
+	}
+	if (!EndTile)
+	{
+		PRINTSTRING(FColor::Red, "EndTile is INVALID in ChessBoard");
+		return 1.f;
+	}
 
 	AChessPiece* ChessPiece = Cast<AChessPiece>(StartTile->ChessPieceOnTile);
-	if (!ChessPiece) return PRINTSTRING(FColor::Red, "ChessPiece is INVALID in ChessBoard");
+	if (!ChessPiece)
+	{
+		PRINTSTRING(FColor::Red, "ChessPiece is INVALID in ChessBoard");
+		return 1.f;
+	}
 
 	FChessPieceInfo Piece = StartTile->ChessPieceOnTile->ChessPieceInfo;
 	int32 ToPosition = EndTile->ChessTileInfo.ChessTilePositionIndex;
@@ -1047,8 +1158,19 @@ void AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile)
 	FChessTileInfo& FromTile = ChessBoardInfo.TilesInfo[Piece.ChessPiecePositionIndex];
 	FChessTileInfo& ToTile = ChessBoardInfo.TilesInfo[ToPosition];
 
+	// capture enemy piece if present (there will never be a friendly piece on EndTile if the Valid move generation code works properly)
+	if (EndTile->ChessPieceOnTile)
+	{
+		EndTile->ChessPieceOnTile->CapturePiece();
+		NumOfMovesSinceLastCapture = 0;
+	}
+	else
+	{
+		NumOfMovesSinceLastCapture++;
+	}
+
 	// Move the piece to the target tile
-	ChessPiece->MovePiece(EndTile);
+	float TimeTakenToMovePiece = ChessPiece->MovePiece(EndTile);
 
 	// Update ChessPieceOnTile
 	ToTile.ChessPieceOnTile = FromTile.ChessPieceOnTile;
@@ -1072,15 +1194,16 @@ void AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile)
 		// Handle castling (if the king moves two tiles)
 		if (FMath::Abs(ToPosition - Piece.ChessPiecePositionIndex) == 2)
 		{
+			float TimeTakenToMoveRook = 1.f;
 			if (ToPosition > Piece.ChessPiecePositionIndex)
 			{
 				// King-side castling
-				MakeMove(ChessTiles[ToPosition + 1], ChessTiles[ToPosition - 1]);
+				MakeMove(ChessTiles[ToPosition + 1], ChessTiles[ToPosition - 1], bIsAIMove);
 			}
 			else
 			{
 				// Queen-side castling
-				MakeMove(ChessTiles[ToPosition - 2], ChessTiles[ToPosition + 1]);
+				MakeMove(ChessTiles[ToPosition - 2], ChessTiles[ToPosition + 1], bIsAIMove);
 			}
 		}
 
@@ -1147,35 +1270,34 @@ void AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile)
 		// Update enpassant target
 		if (FMath::Abs(ToPosition - Piece.ChessPiecePositionIndex) == 16)
 		{
-			// Set the enpassant target to the tile behind the pawn
-			//ChessBoardInfo.EnpassantTileIndex = ToTile.ChessPieceOnTile.bIsWhite ? ToTile.ChessPieceOnTile.ChessPiecePositionIndex - 8 : ToTile.ChessPieceOnTile.ChessPiecePositionIndex + 8;
-			//ChessBoardInfo.EnpassantPawn = ToTile.ChessPieceOnTile;
-
 			EnableEnpassant(ChessPiece);
 		}
 		else
 		{
-			// Clear the enpassant target
-			//ChessBoardInfo.EnpassantTileIndex = -1;
-			//ChessBoardInfo.EnpassantPawn = FChessPieceInfo();
-
 			DisableEnpassant(ChessPiece->ChessPieceInfo.bIsWhite);
 		}
 
 		// Handle pawn promotion (if a pawn reaches the opposite end of the board)
 		if ((ToPosition < 8 || ToPosition >= 56))
 		{
-			AChessPlayerController* ChessPlayerController = Cast<AChessPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
-			if (ChessPlayerController)
+			if (bIsAIMove)
 			{
-				ChessPlayerController->SpawnPawnPromotionUI(ChessPiece);
+				ChessPiece->PromotePawn(FindBestPawnPromotionType(ChessBoardInfo, ChessPiece->ChessPieceInfo.ChessPiecePositionIndex, ChessPiece->ChessPieceInfo.bIsWhite));
 			}
 			else
 			{
-				PRINTSTRING(FColor::Red, "ChessPlayerController is INVALID in ChessBoard");
+				AChessPlayerController* ChessPlayerController = Cast<AChessPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
+				if (ChessPlayerController)
+				{
+					ChessPlayerController->SpawnPawnPromotionUI(ChessPiece);
+				}
+				else
+				{
+					PRINTSTRING(FColor::Red, "ChessPlayerController is INVALID in ChessBoard");
 
-				// Promote to a queen (default behavior)
-				ChessPiece->PromotePawn(EChessPieceType::Queen);
+					// Promote to a queen (default behavior)
+					ChessPiece->PromotePawn(EChessPieceType::Queen);
+				}
 			}
 		}
 		break;
@@ -1183,250 +1305,7 @@ void AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile)
 		break;
 	}
 
-	/*
-	switch (ChessPieceInfo.ChessPieceType)
-	{
-	case EChessPieceType::King:
-		// if King hasn't moved
-		if (!ChessPieceInfo.bHasMoved)
-		{
-			// if first move is two tiles away
-			if (FMath::Abs(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().Y - ChessPieceInfo.GetChessPiecePositionFromIndex().Y) == 2)
-			{
-				// King Side Castling
-				if (MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().Y > ChessPieceInfo.GetChessPiecePositionFromIndex().Y)
-				{
-					// if king side rook piece
-					if (AChessPiece* KingSideRook = ChessBoard->GetChessTileAtPosition(FVector2D(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X, 7))->ChessPieceOnTile)
-					{
-						// and if king side rook hasn't moved
-						if (!KingSideRook->ChessPieceInfo.bHasMoved)
-						{
-							// and if the rook is same colour as king
-							if (KingSideRook->ChessPieceInfo.bIsWhite == ChessPieceInfo.bIsWhite)
-							{
-								// and if it is actually a rook and it is in fact on the king side
-								if (KingSideRook->ChessPieceInfo.ChessPieceType == EChessPieceType::Rook && KingSideRook->ChessPieceInfo.ChessPieceSide == EChessPieceSide::KingSide)
-								{
-									// then get the king side rook castling tile
-									if (AChessTile* KingSideRookCastlingTile = ChessBoard->GetChessTileAtPosition(FVector2D(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X, 5)))
-									{
-										// and if no piece is on that tile
-										if (KingSideRookCastlingTile->ChessPieceOnTile == nullptr)
-										{
-											// move the rook to king side rook castling tile
-											KingSideRook->MovePiece(KingSideRookCastlingTile);
-
-											MoveToTile->ChessPieceOnTile = KingSideRook;
-											KingSideRook->ChessPieceInfo.ChessPiecePositionIndex = MoveToTile->ChessTileInfo.ChessTilePositionIndex;
-
-											ChessBoard->GetChessTileAtPosition(FVector2D(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X, 7))->ChessPieceOnTile = nullptr;
-
-											PRINTSTRING(FColor::Green, "King Side Castling");
-										}
-										else
-										{
-											PRINTSTRING(FColor::Red, "KingSideRookCastlingTile is not empty");
-										}
-									}
-									else
-									{
-										PRINTSTRING(FColor::Red, "KingSideRookCastlingTile is invalid");
-									}
-								}
-								else
-								{
-									PRINTSTRING(FColor::Red, "Not a rook or not a king side rook");
-								}
-							}
-							else
-							{
-								PRINTSTRING(FColor::Red, "Rook is not of the same colour as King");
-							}
-						}
-						else
-						{
-							PRINTSTRING(FColor::Red, "KingSideRook has moved");
-						}
-					}
-					else
-					{
-						PRINTSTRING(FColor::Red, "KingSideRook Invalid");
-					}
-				}
-				else // Queen Side Castling
-				{
-					// if queen side rook piece
-					if (AChessPiece* QueenSideRook = ChessBoard->GetChessTileAtPosition(FVector2D(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X, 0))->ChessPieceOnTile)
-					{
-						// and if king side rook hasn't moved
-						if (!QueenSideRook->ChessPieceInfo.bHasMoved)
-						{
-							// and if the rook is same colour as king
-							if (QueenSideRook->ChessPieceInfo.bIsWhite == ChessPieceInfo.bIsWhite)
-							{
-								// and if it is actually a rook and it is in fact on the queen side
-								if (QueenSideRook->ChessPieceInfo.ChessPieceType == EChessPieceType::Rook && QueenSideRook->ChessPieceInfo.ChessPieceSide == EChessPieceSide::QueenSide)
-								{
-									// then get the queen side rook castling tile
-									if (AChessTile* QueenSideRookCastlingTile = ChessBoard->GetChessTileAtPosition(FVector2D(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X, 3)))
-									{
-										// and if no piece is on that tile
-										if (QueenSideRookCastlingTile->ChessPieceOnTile == nullptr)
-										{
-											// move the rook to queen side rook castling tile
-											QueenSideRook->MovePiece(QueenSideRookCastlingTile);
-
-											MoveToTile->ChessPieceOnTile = QueenSideRook;
-											QueenSideRook->ChessPieceInfo.ChessPiecePositionIndex = MoveToTile->ChessTileInfo.ChessTilePositionIndex;
-
-											ChessBoard->GetChessTileAtPosition(FVector2D(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X, 0))->ChessPieceOnTile = nullptr;
-
-											PRINTSTRING(FColor::Green, "Queen Side Castling");
-										}
-										else
-										{
-											PRINTSTRING(FColor::Red, "QueenSideRookCastlingTile is not empty");
-										}
-									}
-									else
-									{
-										PRINTSTRING(FColor::Red, "QueenSideRookCastlingTile is invalid");
-									}
-								}
-								else
-								{
-									PRINTSTRING(FColor::Red, "Not a rook or not a queen side rook");
-								}
-							}
-							else
-							{
-								PRINTSTRING(FColor::Red, "Rook is not of the same colour as King");
-							}
-						}
-						else
-						{
-							PRINTSTRING(FColor::Red, "QueenSideRook has moved");
-						}
-					}
-					else
-					{
-						PRINTSTRING(FColor::Red, "QueenSideRook Invalid");
-					}
-				}
-			}
-		}
-		else
-		{
-			PRINTSTRING(FColor::Red, "King has Moved");
-		}
-
-		if (ChessPieceInfo.bIsWhite)
-		{
-			if (!ChessBoard->ChessBoardInfo.bHasWhiteKingMoved) ChessBoard->ChessBoardInfo.bHasWhiteKingMoved = true;
-		}
-		else
-		{
-			if (!ChessBoard->ChessBoardInfo.bHasBlackKingMoved) ChessBoard->ChessBoardInfo.bHasBlackKingMoved = true;
-		}
-		break;
-	case EChessPieceType::Queen:
-		break;
-	case EChessPieceType::Bishop:
-		break;
-	case EChessPieceType::Knight:
-		break;
-	case EChessPieceType::Rook:
-		if (ChessPieceInfo.bIsWhite)
-		{
-			switch (ChessPieceInfo.ChessPieceSide)
-			{
-			case EChessPieceSide::None:
-				break;
-			case EChessPieceSide::KingSide:
-				if (!ChessBoard->ChessBoardInfo.bHasWhiteKingSideRookMoved) ChessBoard->ChessBoardInfo.bHasWhiteKingSideRookMoved = true;
-				break;
-			case EChessPieceSide::QueenSide:
-				if (!ChessBoard->ChessBoardInfo.bHasWhiteQueenSideRookMoved) ChessBoard->ChessBoardInfo.bHasWhiteQueenSideRookMoved = true;
-				break;
-			default:
-				break;
-			}
-		}
-		else
-		{
-			switch (ChessPieceInfo.ChessPieceSide)
-			{
-			case EChessPieceSide::None:
-				break;
-			case EChessPieceSide::KingSide:
-				if (!ChessBoard->ChessBoardInfo.bHasBlackKingSideRookMoved) ChessBoard->ChessBoardInfo.bHasBlackKingSideRookMoved = true;
-				break;
-			case EChessPieceSide::QueenSide:
-				if (!ChessBoard->ChessBoardInfo.bHasBlackQueenSideRookMoved) ChessBoard->ChessBoardInfo.bHasBlackQueenSideRookMoved = true;
-				break;
-			default:
-				break;
-			}
-		}
-		break;
-	case EChessPieceType::Pawn:
-		if (!ChessPieceInfo.bHasMoved) // is first move of pawn
-		{
-			// if first move is two tiles away
-			if (FMath::Abs(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X - ChessPieceInfo.GetChessPiecePositionFromIndex().X) == 2)
-			{
-				bool bEnableEnpassant = false;
-
-				for (int32 i = -1; i <= 1; i += 2) // two sides of piece
-				{
-					if (AChessTile* ChessTileOnSide = ChessBoard->GetChessTileAtPosition(MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex() + FVector2D(0, i)))
-					{
-						if (ChessTileOnSide->ChessPieceOnTile) // if theres a piece on the side...
-						{
-							// and if the side piece is an opponent pawn
-							if (ChessTileOnSide->ChessPieceOnTile->ChessPieceInfo.bIsWhite != ChessPieceInfo.bIsWhite && ChessTileOnSide->ChessPieceOnTile->ChessPieceInfo.ChessPieceType == EChessPieceType::Pawn)
-							{
-								bEnableEnpassant = true;
-							}
-						}
-					}
-				}
-
-				if (bEnableEnpassant) ChessBoard->EnableEnpassant(ChessBoard->ChessBoardInfo, ChessPieceInfo);
-			}
-		}
-		else if (MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X == 0 || MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().X == 7) // Pawn has reached the end of the line
-		{
-			AChessPlayerController* ChessPlayerController = Cast<AChessPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
-			if (ChessPlayerController)
-			{
-				ChessPlayerController->SpawnPawnPromotionUI(this);
-			}
-			else
-			{
-				PRINTSTRING(FColor::Red, "ChessPlayerController is INVALID in ChessPiece");
-				PromotePawn(EChessPieceType::Queen); // fallback promotion if UI doesn't spawn
-			}
-		}
-		else if (MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().Y == (ChessPieceInfo.GetChessPiecePositionFromIndex().Y + 1) || MoveToTile->ChessTileInfo.GetChessTilePositionFromIndex().Y == (ChessPieceInfo.GetChessPiecePositionFromIndex().Y - 1)) // is a diagonal move
-		{
-			// TODO : FIX ENPASSANT ENABLE AND DISABLE
-			if (MoveToTile->ChessTileInfo.ChessTilePositionIndex == ChessBoard->ChessBoardInfo.EnpassantTileIndex && ChessBoard->EnpassantPawn) // Enpassant Capture
-			{
-				if (AChessTile* EnpassantPawnOnTile = ChessBoard->ChessTiles[ChessBoard->EnpassantPawn->ChessPieceInfo.ChessPiecePositionIndex])
-				{
-					EnpassantPawnOnTile->ChessPieceOnTile = nullptr;
-					ChessBoard->EnpassantPawn->CapturePiece();
-					ChessBoard->DisableEnpassant(ChessBoard->ChessBoardInfo, ChessPieceInfo.bIsWhite);
-				}
-			}
-		}
-		break;
-	default:
-		break;
-	}
-	*/
+	return TimeTakenToMovePiece;
 }
 
 bool AChessBoard::IsKingInCheck(const FChessBoardInfo& BoardInfo, bool bIsWhiteKing)
@@ -1552,4 +1431,355 @@ int32 AChessBoard::MoveGenerationTest(FChessBoardInfo BoardInfo, bool bIsWhiteTu
 	}
 
 	return NumberOfPositions;
+}
+
+FChessMove AChessBoard::CalculateBestAIMove(FChessBoardInfo BoardInfo, bool bIsWhiteTurn, int32 MaxDepth)
+{
+	int32 BestEval = bIsWhiteTurn ? INT_MIN : INT_MAX;
+	FChessMove BestMove(-1, -1);
+
+	for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+	{
+		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+		{
+			if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn)
+			{
+				for (int32 Move : Tile.ChessPieceOnTile.ValidMoves)
+				{
+					FChessBoardInfo SimulatedBoardInfo = BoardInfo;
+					SimulateMove(SimulatedBoardInfo, Tile.ChessPieceOnTile, Move);
+
+					int32 Eval = AlphaBetaSearch(SimulatedBoardInfo, MaxDepth - 1, INT_MIN, INT_MAX, !bIsWhiteTurn);
+					
+					if ((bIsWhiteTurn && Eval > BestEval) || (!bIsWhiteTurn && Eval < BestEval))
+					{
+						BestEval = Eval;
+						BestMove = FChessMove(Tile.ChessTilePositionIndex, Move);
+					}
+				}
+			}
+		}
+	}
+
+	return BestMove;
+}
+
+EChessPieceType AChessBoard::FindBestPawnPromotionType(FChessBoardInfo BoardInfo, int32 PiecePositionIndex, bool bIsPieceWhite)
+{
+	EChessPieceType BestPromotionType = EChessPieceType::Queen;
+	int32 BestEval = INT_MIN;
+
+	for (EChessPieceType Type : { EChessPieceType::King, EChessPieceType::Queen, EChessPieceType::Bishop, EChessPieceType::Knight, EChessPieceType::Rook, EChessPieceType::Pawn })
+	{
+		BoardInfo.TilesInfo[PiecePositionIndex].ChessPieceOnTile.ChessPieceType = Type;
+
+		int32 Eval = EvaluateBoard(BoardInfo);
+	
+		if ((bIsPieceWhite && Eval > BestEval) || (!bIsPieceWhite && Eval < BestEval))
+		{
+			BestEval = Eval;
+			BestPromotionType = Type;
+		}
+	}
+
+	return BestPromotionType;
+}
+
+int32 AChessBoard::AlphaBetaSearch(FChessBoardInfo BoardInfo, int32 Depth, int32 Alpha, int32 Beta, bool bIsWhiteTurn)
+{
+	GenerateAllValidMoves(BoardInfo, bIsWhiteTurn);
+
+	if (Depth == 0 || IsGameOver(BoardInfo, bIsWhiteTurn) != EChessGameState::Ongoing) return /*EvaluateBoard(BoardInfo);*/ AlphaBetaSearchAllCaptures(BoardInfo, 1, Alpha, Beta, bIsWhiteTurn);
+
+	if (bIsWhiteTurn)
+	{
+		int32 MaxEval = INT_MIN;
+
+		for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+		{
+			if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+			{
+				if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn)
+				{
+					for (int32 Move : Tile.ChessPieceOnTile.ValidMoves)
+					{
+						FChessBoardInfo SimulatedBoardInfo = BoardInfo;
+						SimulateMove(SimulatedBoardInfo, Tile.ChessPieceOnTile, Move);
+
+						int32 Eval = AlphaBetaSearch(SimulatedBoardInfo, Depth - 1, Alpha, Beta, !bIsWhiteTurn);
+						
+						MaxEval = FMath::Max(MaxEval, Eval);
+						Alpha = FMath::Max(Alpha, Eval);
+
+						if (Beta <= Alpha) break; // Beta cutoff
+					}
+				}
+			}
+		}
+
+		return MaxEval;
+	}
+	else
+	{
+		int32 MinEval = INT_MAX;
+
+		for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+		{
+			if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+			{
+				if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn)
+				{
+					for (int32 Move : Tile.ChessPieceOnTile.ValidMoves)
+					{
+						FChessBoardInfo SimulatedBoardInfo = BoardInfo;
+						SimulateMove(SimulatedBoardInfo, Tile.ChessPieceOnTile, Move);
+
+						int32 Eval = AlphaBetaSearch(SimulatedBoardInfo, Depth - 1, Alpha, Beta, !bIsWhiteTurn);
+
+						MinEval = FMath::Min(MinEval, Eval);
+						Beta = FMath::Min(Beta, Eval);
+
+						if (Beta <= Alpha) break; // Alpha cutoff
+					}
+				}
+			}
+		}
+
+		return MinEval;
+	}
+}
+
+int32 AChessBoard::AlphaBetaSearchAllCaptures(FChessBoardInfo BoardInfo, int32 Depth, int32 Alpha, int32 Beta, bool bIsWhiteTurn)
+{
+	int32 Evaluation = EvaluateBoard(BoardInfo);
+
+	if (Depth == 0) return Evaluation;
+
+	GenerateAllValidMoves(BoardInfo, bIsWhiteTurn, true);
+
+	if (bIsWhiteTurn)
+	{
+		int32 MaxEval = Evaluation;
+
+		for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+		{
+			if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+			{
+				if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn)
+				{
+					for (int32 Move : Tile.ChessPieceOnTile.ValidMoves)
+					{
+						FChessBoardInfo SimulatedBoardInfo = BoardInfo;
+						SimulateMove(SimulatedBoardInfo, Tile.ChessPieceOnTile, Move);
+
+						int32 Eval = AlphaBetaSearchAllCaptures(SimulatedBoardInfo, Depth - 1, Alpha, Beta, !bIsWhiteTurn);
+
+						MaxEval = FMath::Max(MaxEval, Eval);
+						Alpha = FMath::Max(Alpha, Eval);
+
+						if (Beta <= Alpha) break; // Beta cutoff
+					}
+				}
+			}
+		}
+
+		return MaxEval;
+	}
+	else
+	{
+		int32 MinEval = Evaluation;
+
+		for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+		{
+			if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+			{
+				if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn)
+				{
+					for (int32 Move : Tile.ChessPieceOnTile.ValidMoves)
+					{
+						FChessBoardInfo SimulatedBoardInfo = BoardInfo;
+						SimulateMove(SimulatedBoardInfo, Tile.ChessPieceOnTile, Move);
+
+						int32 Eval = AlphaBetaSearchAllCaptures(SimulatedBoardInfo, Depth - 1, Alpha, Beta, !bIsWhiteTurn);
+
+						MinEval = FMath::Min(MinEval, Eval);
+						Beta = FMath::Min(Beta, Eval);
+
+						if (Beta <= Alpha) break; // Alpha cutoff
+					}
+				}
+			}
+		}
+
+		return MinEval;
+	}
+}
+
+int32 AChessBoard::EvaluateBoard(const FChessBoardInfo& BoardInfo)
+{
+	int32 Score = 0;
+	int32 WhiteKingPosition = -1;
+	int32 BlackKingPosition = -1;
+
+	for (const FChessTileInfo& Tile : BoardInfo.TilesInfo)
+	{
+		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+		{
+			int32 PieceValue = 0;
+
+			switch (Tile.ChessPieceOnTile.ChessPieceType)
+			{
+				case EChessPieceType::King:		/*PieceValue = 100000;*/	break;
+				case EChessPieceType::Queen:	PieceValue = 900;			break;
+				case EChessPieceType::Bishop:	PieceValue = 300;			break;
+				case EChessPieceType::Knight:	PieceValue = 300;			break;
+				case EChessPieceType::Rook:		PieceValue = 500;			break;
+				case EChessPieceType::Pawn:		PieceValue = 100;			break;
+				default: break;
+			}
+
+			if (Tile.ChessPieceOnTile.bIsWhite)
+			{
+				Score += PieceValue;
+
+				if (Tile.ChessPieceOnTile.ChessPieceType == EChessPieceType::King)
+					WhiteKingPosition = Tile.ChessTilePositionIndex;
+			}
+			else
+			{
+				Score -= PieceValue;
+
+				if (Tile.ChessPieceOnTile.ChessPieceType == EChessPieceType::King)
+					BlackKingPosition = Tile.ChessTilePositionIndex;
+			}
+		}
+	}
+
+	if (IsEndGame(BoardInfo))
+	{
+		// Add heuristic to drive the enemy king to corners
+		if (WhiteKingPosition != -1) Score += KingPositionScore(BlackKingPosition); // Enemy king
+		if (BlackKingPosition != -1) Score -= KingPositionScore(WhiteKingPosition); // Enemy king
+	}
+
+	return Score;
+}
+
+bool AChessBoard::IsEndGame(const FChessBoardInfo& BoardInfo)
+{
+	int32 BoardScore = 0;
+
+	for (const FChessTileInfo& Tile : BoardInfo.TilesInfo)
+	{
+		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+		{
+			switch (Tile.ChessPieceOnTile.ChessPieceType)
+			{
+			case EChessPieceType::King:							break;
+			case EChessPieceType::Queen:	BoardScore += 9;	break;
+			case EChessPieceType::Bishop:	BoardScore += 3;	break;
+			case EChessPieceType::Knight:	BoardScore += 3;	break;
+			case EChessPieceType::Rook:		BoardScore += 5;	break;
+			case EChessPieceType::Pawn:		BoardScore += 1;	break;
+			default: break;
+			}
+		}
+	}
+
+	return BoardScore <= 12; // Arbitrary threshold for "endgame"
+}
+
+int32 AChessBoard::KingPositionScore(int32 KingPosition)
+{
+	int32 Rank = KingPosition / 8;
+	int32 File = KingPosition % 8;
+
+	// calculate Manhattan Distance to corners
+	int32 DistToA1 = Rank + File;
+	int32 DistToH1 = Rank + (7 - File);
+	int32 DistToA8 = (7 - Rank) + File;
+	int32 DistToH8 = (7 - Rank) + (7 - File);
+
+	// Find Shortest Distance to any corner
+	int32 MinDist = FMath::Min(
+		FMath::Min(DistToA1, DistToH1),
+		FMath::Min(DistToA8, DistToH8)
+	);
+
+	// assign higher score for closer distances
+	return 14 - MinDist; // Closer to 14 (corner), best score
+}
+
+EChessGameState AChessBoard::IsGameOver(const FChessBoardInfo& BoardInfo, bool bIsWhiteTurn)
+{
+	int32 NumOfValidMoves = 0;
+
+	for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1)
+			if (Tile.ChessPieceOnTile.bIsWhite == bIsWhiteTurn)
+				NumOfValidMoves += Tile.ChessPieceOnTile.ValidMoves.Num();
+
+	// if No Valid moves available, Game Over
+	if (NumOfValidMoves == 0)
+	{
+		if ((bIsWhiteTurn) ? BoardInfo.bIsWhiteKingUnderCheck : BoardInfo.bIsBlackKingUnderCheck)
+		{
+			//PRINTSTRING(FColor::Red, "CHECKMATE");
+			return EChessGameState::Checkmate;
+		} 
+		else
+		{
+			//PRINTSTRING(FColor::Red, "STALEMATE");
+			return EChessGameState::Stalemate;
+		}
+	}
+
+	if (!CanCheckMateOccur(BoardInfo)) return EChessGameState::Draw; // if checkmate cannot occur, Game Over
+
+	if (NumOfMovesSinceLastCapture >= 100) return EChessGameState::Draw; // if 100 half-moves since last capture, Game Over
+
+	// TODO : Implement three time repetition rule
+
+	return EChessGameState::Ongoing;
+}
+
+bool AChessBoard::CanCheckMateOccur(FChessBoardInfo BoardInfo)
+{
+	int32 NumWhitePieces = 0;
+	int32 NumBlackPieces = 0;
+	int32 NumWhiteBishops = 0;
+	int32 NumBlackBishops = 0;
+	int32 NumWhiteKnights = 0;
+	int32 NumBlackKnights = 0;
+
+	for (FChessTileInfo Tile : BoardInfo.TilesInfo)
+	{
+		// if tile is empty
+		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex == -1) continue;
+
+		if (Tile.ChessPieceOnTile.bIsWhite)
+		{
+			NumWhitePieces++;
+
+			if (Tile.ChessPieceOnTile.ChessPieceType == EChessPieceType::Bishop) NumWhiteBishops++;
+			if (Tile.ChessPieceOnTile.ChessPieceType == EChessPieceType::Knight) NumWhiteKnights++;
+		}
+		else
+		{
+			NumBlackPieces++;
+
+			if (Tile.ChessPieceOnTile.ChessPieceType == EChessPieceType::Bishop) NumBlackBishops++;
+			if (Tile.ChessPieceOnTile.ChessPieceType == EChessPieceType::Knight) NumBlackKnights++;
+		}
+	}
+
+	// Check for insufficient material conditions
+	if ((NumWhitePieces == 1 && NumBlackPieces == 1) ||								// King vs. King
+		(NumWhitePieces == 2 && NumBlackPieces == 1 && NumWhiteKnights == 1) ||		// King & Knight vs. King
+		(NumWhitePieces == 2 && NumBlackPieces == 1 && NumWhiteBishops == 1) ||		// King & Bishop vs. King
+		(NumWhitePieces == 1 && NumBlackPieces == 2 && NumBlackKnights == 1) ||		// King vs. King & Knight
+		(NumWhitePieces == 1 && NumBlackPieces == 2 && NumBlackBishops == 1))		// King vs. King & Bishop
+		return false;
+
+	return true;
 }

@@ -28,9 +28,37 @@ enum class EChessPieceSide : uint8
 	QueenSide		UMETA(DisplayName = "QueenSide")
 };
 
+UENUM(BlueprintType)
+enum class EChessGameState : uint8
+{
+	Ongoing			UMETA(DisplayName = "Ongoing"),
+	Draw			UMETA(DisplayName = "Draw"),
+	Stalemate		UMETA(DisplayName = "Stalemate"),
+	Checkmate		UMETA(DisplayName = "Checkmate")
+};
+
 
 
 // Structures
+
+USTRUCT(BlueprintType)
+struct FChessMove
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 FromIndex;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 ToIndex;
+
+	FChessMove() : FromIndex(-1), ToIndex(-1) {}
+
+	FChessMove(int32 FromIndex_, int32 ToIndex_) : 
+		FromIndex(FromIndex_),
+		ToIndex(ToIndex_) {
+	}
+};
 
 USTRUCT(BlueprintType)
 struct FChessPieceInfo
@@ -39,9 +67,6 @@ struct FChessPieceInfo
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "IsWhite?"))
 	bool bIsWhite;
-
-	//UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (DisplayName = "HasMoved?"))
-	//bool bHasMoved;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EChessPieceType ChessPieceType;
@@ -57,15 +82,13 @@ struct FChessPieceInfo
 
 	FChessPieceInfo() :
 		bIsWhite(true),
-		//bHasMoved(false),
 		ChessPieceType(EChessPieceType::Pawn),
 		ChessPieceSide(EChessPieceSide::None),
 		ChessPiecePositionIndex(-1) {
 	}
 
-	FChessPieceInfo(bool bIsWhite_, /*bool bHasMoved_, */EChessPieceType ChessPieceType_, EChessPieceSide ChessPieceSide_, int32 ChessPiecePositionIndex_, TArray<int32> ValidMoves_) :
+	FChessPieceInfo(bool bIsWhite_, EChessPieceType ChessPieceType_, EChessPieceSide ChessPieceSide_, int32 ChessPiecePositionIndex_, TArray<int32> ValidMoves_) :
 		bIsWhite(bIsWhite_),
-		//bHasMoved(bHasMoved_),
 		ChessPieceType(ChessPieceType_),
 		ChessPieceSide(ChessPieceSide_),
 		ChessPiecePositionIndex(ChessPiecePositionIndex_),
@@ -74,7 +97,7 @@ struct FChessPieceInfo
 
 	bool operator==(const FChessPieceInfo& Other) const
 	{
-		return bIsWhite == Other.bIsWhite && /*bHasMoved == Other.bHasMoved && */ChessPieceType == Other.ChessPieceType && ChessPieceSide == Other.ChessPieceSide && ChessPiecePositionIndex == Other.ChessPiecePositionIndex && ValidMoves == Other.ValidMoves;
+		return bIsWhite == Other.bIsWhite && ChessPieceType == Other.ChessPieceType && ChessPieceSide == Other.ChessPieceSide && ChessPiecePositionIndex == Other.ChessPiecePositionIndex && ValidMoves == Other.ValidMoves;
 	}
 
 	FVector2D GetChessPiecePositionFromIndex()
@@ -136,16 +159,11 @@ struct FChessBoardInfo
 {
 	GENERATED_BODY()
 
-	// Board Layout
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TArray<FChessTileInfo> TilesInfo;
 
-	//UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	//TArray<FChessPieceInfo> WhitePiecesInfo;
-
-	//UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	//TArray<FChessPieceInfo> BlackPiecesInfo;
-
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsWhiteTurn;
 
 	// Check variables
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -196,6 +214,7 @@ struct FChessBoardInfo
 
 
 	FChessBoardInfo() :
+		bIsWhiteTurn(true),
 		bIsWhiteKingUnderCheck(false),
 		bIsBlackKingUnderCheck(false),
 		EnpassantPawn(FChessPieceInfo()),

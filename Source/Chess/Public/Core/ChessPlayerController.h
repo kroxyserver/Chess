@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+#include "Miscellaneous/StructuresAndEnumerations.h"
+
 #include "GameFramework/PlayerController.h"
 
 #include "ChessPlayerController.generated.h"
@@ -36,6 +38,9 @@ public:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "+Chess|PlayerController")
     void SpawnPawnPromotionUI(AChessPiece* PawnPiece);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "+Chess|PlayerController")
+    void SpawnGameOverUI(EChessGameState GameState, bool bIsWhiteTurn);
 
 #pragma endregion
 

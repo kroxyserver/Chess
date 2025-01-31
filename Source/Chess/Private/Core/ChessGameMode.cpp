@@ -16,7 +16,8 @@
 AChessGameMode::AChessGameMode() :
 	ChessBoardClass(AChessBoard::StaticClass()),
 	ChessGameModeType(EChessGameModeType::Player_VS_Player),
-	bIsWhiteTurn(true)
+	ChessGameState(EChessGameState::Ongoing),
+	bIsWhiteTurn(false)
 {
 	DefaultPawnClass = AChessPlayer::StaticClass();
 	PlayerControllerClass = AChessPlayerController::StaticClass();
@@ -65,6 +66,19 @@ void AChessGameMode::BeginPlay()
 	{
 	case EChessGameModeType::Player_VS_AI:
 		ChessPlayerController->bIsPlayerTurn = UKismetMathLibrary::RandomBool();
+
+		if (!ChessPlayerController->bIsPlayerTurn)
+		{
+			ChessBoard->BlackOpeningMove = UKismetMathLibrary::RandomInteger(ChessBoard->BlackOpeningMoves.Num() - 1);
+		}
+		else
+		{
+			ChessBoard->WhiteOpeningMove = UKismetMathLibrary::RandomInteger(ChessBoard->WhiteOpeningMoves.Num() - 1);
+		}
+
+		// Switch Initial Player view to Black if playing against AI
+		ChessPlayer->SwitchPlayerView(!ChessPlayerController->bIsPlayerTurn);
+
 		break;
 	case EChessGameModeType::Player_VS_Player:
 		ChessPlayerController->bIsPlayerTurn = true;
@@ -72,33 +86,102 @@ void AChessGameMode::BeginPlay()
 	default:
 		break;
 	}
+
+	SwitchTurn(); // Start Playing
 }
 
 void AChessGameMode::SwitchTurn()
 {
+	if (!ChessBoard) return PRINTSTRING(FColor::Red, "ChessBoard is Invalid in GameMode");
+	if (!ChessPlayerController) return PRINTSTRING(FColor::Red, "ChessPlayerController is Invalid in GameMode");
+	if (!ChessPlayer) return PRINTSTRING(FColor::Red, "ChessPlayer is Invalid in GameMode");
+	
 	bIsWhiteTurn = !bIsWhiteTurn;
 	
-	if (!ChessBoard) return PRINTSTRING(FColor::Red, "ChessBoard is Invalid in GameMode");
+	OnSwitchTurn.Broadcast();
 
 	ChessBoard->GenerateAllValidMoves(ChessBoard->ChessBoardInfo, bIsWhiteTurn);
+
+	// Check if GameOver
+	ChessGameState = ChessBoard->IsGameOver(ChessBoard->ChessBoardInfo, bIsWhiteTurn);
+		
+	if (ChessGameState != EChessGameState::Ongoing) return ChessPlayerController->SpawnGameOverUI(ChessGameState, bIsWhiteTurn);
 
 	switch (ChessGameModeType)
 	{
 	case EChessGameModeType::Player_VS_AI:
-		if (!ChessPlayerController) return PRINTSTRING(FColor::Red, "ChessPlayerController is Invalid in GameMode");
 		ChessPlayerController->bIsPlayerTurn = !ChessPlayerController->bIsPlayerTurn;
+				
+		if (!ChessPlayerController->bIsPlayerTurn) // if AI's turn, then move AI piece
+		{
+			ChessPlayerController->DisableInput(ChessPlayerController);
+
+			if ((bIsWhiteTurn)
+				? (ChessBoard->WhiteOpeningIndex < ChessBoard->WhiteOpeningMoves[ChessBoard->WhiteOpeningMove].Num())	// if AI is White and White Opening Moves are available...
+				: (ChessBoard->BlackOpeningIndex < ChessBoard->BlackOpeningMoves[ChessBoard->BlackOpeningMove].Num()))	// if AI is Black and Black Opening Moves are available...
+			{
+				// Do an Opening Move
+				if (bIsWhiteTurn)
+				{
+					FChessMove Move = ChessBoard->WhiteOpeningMoves[ChessBoard->WhiteOpeningMove][ChessBoard->WhiteOpeningIndex];
+					ChessBoard->MakeMove(ChessBoard->ChessTiles[Move.FromIndex], ChessBoard->ChessTiles[Move.ToIndex], true);
+					ChessBoard->WhiteOpeningIndex++;
+				}
+				else
+				{
+					FChessMove Move = ChessBoard->BlackOpeningMoves[ChessBoard->BlackOpeningMove][ChessBoard->BlackOpeningIndex];
+					ChessBoard->MakeMove(ChessBoard->ChessTiles[Move.FromIndex], ChessBoard->ChessTiles[Move.ToIndex], true);
+					ChessBoard->BlackOpeningIndex++;
+				}
+
+				FTimerHandle TH_MakeMoveDelay;
+				GetWorldTimerManager().SetTimer(
+					TH_MakeMoveDelay,
+					[this]()
+					{
+						ChessPlayerController->EnableInput(ChessPlayerController);
+						ChessPlayerController->OnPieceMoved.Broadcast(bIsWhiteTurn);
+						SwitchTurn();
+					},
+					.1f,
+					false
+				);
+			}
+			else
+			{
+				Async(EAsyncExecution::ThreadPool, [this]()
+				{
+					FChessMove BestMove = ChessBoard->CalculateBestAIMove(ChessBoard->ChessBoardInfo, bIsWhiteTurn, ChessBoard->MaxSearchDepthForAIMove);
+
+					Async(EAsyncExecution::TaskGraphMainThread, [this, BestMove]()
+					{
+						if (BestMove.FromIndex == -1 || BestMove.ToIndex == -1)	return PRINTSTRING(FColor::Red, "CHECKMATE, Player Wins / Invalid Best Move for AI");
+
+						ChessBoard->MakeMove(ChessBoard->ChessTiles[BestMove.FromIndex], ChessBoard->ChessTiles[BestMove.ToIndex], true);
+
+						FTimerHandle TH_MakeMoveDelay;
+						GetWorldTimerManager().SetTimer(
+							TH_MakeMoveDelay,
+							[this]()
+							{
+								PRINTSTRING(FColor::Green, "enable Input");
+								ChessPlayerController->EnableInput(ChessPlayerController);
+								ChessPlayerController->OnPieceMoved.Broadcast(bIsWhiteTurn);
+								SwitchTurn();
+							},
+							.1f,
+							false
+						);
+					});
+				});
+			}
+		}
 		
-		//TODO : MORE CODE NEEDED HERE FOR AI FUNCTIONALITY
-
-
 		break;
 	case EChessGameModeType::Player_VS_Player:
-		if (!ChessPlayer) return PRINTSTRING(FColor::Red, "ChessPlayer is Invalid in GameMode");
 		ChessPlayer->SwitchPlayerView(bIsWhiteTurn);
 		break;
 	default:
 		break;
 	}
-
-	OnSwitchTurn.Broadcast();
 }

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "Core/ChessGameInstance.h"
+#include "Miscellaneous/StructuresAndEnumerations.h"
 
 #include "GameFramework/GameMode.h"
 
@@ -54,6 +55,9 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "+Chess|GameMode")
     EChessGameModeType ChessGameModeType;
+
+    UPROPERTY(BlueprintReadOnly, Category = "+Chess|GameMode")
+    EChessGameState ChessGameState;
 
     UPROPERTY(BlueprintReadOnly, Category = "+Chess|GameMode")
     bool bIsWhiteTurn;

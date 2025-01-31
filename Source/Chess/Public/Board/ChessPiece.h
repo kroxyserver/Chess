@@ -54,11 +54,7 @@ public:
 
 	void CapturePiece();
 
-	void MovePiece(AChessTile* MoveToTile);
-
-	//void UpdateTilesUnderAttack();
-
-	//FORCEINLINE bool IsPositionWithinBounds(FVector2D Position) { return Position.X >= 0 && Position.X < 8 && Position.Y >= 0 && Position.Y < 8; }
+	float MovePiece(AChessTile* MoveToTile);
 
 	UFUNCTION(BlueprintCallable, Category = "+Chess|Piece")
 	void PromotePawn(EChessPieceType PromotionType);
@@ -70,6 +66,7 @@ public:
 public:
 	float TotalTravelDistance = 0.f;
 
+	UPROPERTY(BlueprintAssignable, Category = "+Chess|Piece")
 	FOnPieceCaptured OnPieceCaptured;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Piece")
@@ -83,16 +80,6 @@ public:
 
 private:
 	FPredictProjectilePathParams PredictParams;
-
-	//TArray<FVector2D> KingMovePositionTileOffsets = { FVector2D(1, -1), FVector2D(1, 0), FVector2D(1, 1), FVector2D(0, 1), FVector2D(-1, 1), FVector2D(-1, 0), FVector2D(-1, -1), FVector2D(0, -1) };
-
-	//TArray<FVector2D> KnightMovePositionTileOffsets = { FVector2D(2, -1), FVector2D(2, 1), FVector2D(1, 2), FVector2D(-1, 2), FVector2D(-2, 1), FVector2D(-2, -1), FVector2D(-1, -2), FVector2D(1, -2) };
-
-	//TArray<FVector2D> BishopMovePositionDirections = { FVector2D(1, -1), FVector2D(1, 1), FVector2D(-1, 1), FVector2D(-1, -1) };
-
-	//TArray<FVector2D> RookMovePositionDirections = { FVector2D(1, 0), FVector2D(0, 1), FVector2D(-1, 0), FVector2D(0, -1) };
-
-	//TArray<FVector2D> QueenMovePositionDirections = KingMovePositionTileOffsets;
 
 #pragma endregion
 };

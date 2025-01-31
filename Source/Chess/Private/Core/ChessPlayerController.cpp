@@ -59,6 +59,12 @@ void AChessPlayerController::SelectPiece()
 		return;
 	}
 
+	if (ChessGameMode->ChessGameState != EChessGameState::Ongoing)
+	{
+		PRINTSTRING(FColor::Red, "Game Over");
+		return;
+	}
+
 	AChessBoard* ChessBoard = Cast<AChessBoard>(UGameplayStatics::GetActorOfClass(GetWorld(), AChessBoard::StaticClass()));
 	if (!ChessBoard)
 	{
@@ -119,39 +125,24 @@ void AChessPlayerController::SelectPiece()
 			// and if the piece is a friendly piece...
 			if (SelectedTile->ChessTileInfo.ChessPieceOnTile.bIsWhite == HitTile->ChessTileInfo.ChessPieceOnTile.bIsWhite)
 				return PRINTSTRING(FColor::Red, "Tile is Occupied with a friendly Piece");
-			
-			HitTile->ChessPieceOnTile->CapturePiece(); // capture enemy piece
 		}
 
 		ChessBoard->HightlightValidMovesOnTile(false, SelectedTile->ChessTileInfo.ChessTilePositionIndex);
+		
+		float TimeTakenToMovePiece = ChessBoard->MakeMove(SelectedTile, HitTile, false);
 
-		ChessBoard->MakeMove(SelectedTile, HitTile);
-
-
-
-
-
-		//SelectedTile->ChessPieceOnTile->MovePiece(HitTile);
-
-		//ChessBoard->ChessBoardInfo.TilesInfo[HitTile->ChessTileInfo.ChessTilePositionIndex].ChessPieceOnTile = SelectedTile->ChessTileInfo.ChessPieceOnTile;
-		//HitTile->ChessTileInfo.ChessPieceOnTile = SelectedTile->ChessTileInfo.ChessPieceOnTile;
-		//HitTile->ChessPieceOnTile = SelectedTile->ChessPieceOnTile;
-
-		//ChessBoard->ChessBoardInfo.TilesInfo[HitTile->ChessTileInfo.ChessTilePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
-		//HitTile->ChessTileInfo.ChessPieceOnTile.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
-		//HitTile->ChessPieceOnTile->ChessPieceInfo.ChessPiecePositionIndex = HitTile->ChessTileInfo.ChessTilePositionIndex;
-
-		//ChessBoard->ChessBoardInfo.TilesInfo[SelectedTile->ChessTileInfo.ChessTilePositionIndex].ChessPieceOnTile = FChessPieceInfo();
-		//SelectedTile->ChessTileInfo.ChessPieceOnTile = FChessPieceInfo();
-		//SelectedTile->ChessPieceOnTile = nullptr;
-
-
-
-		SelectedTile = nullptr;
-
-		OnPieceMoved.Broadcast(ChessGameMode->bIsWhiteTurn);
-
-		ChessGameMode->SwitchTurn();
+		FTimerHandle TH_MakeMoveDelay;
+		GetWorldTimerManager().SetTimer(
+			TH_MakeMoveDelay,
+			[this, ChessGameMode]()
+			{
+				SelectedTile = nullptr;
+				OnPieceMoved.Broadcast(ChessGameMode->bIsWhiteTurn);
+				ChessGameMode->SwitchTurn();
+			},
+			TimeTakenToMovePiece,
+			false
+		);
 	}
 	else // if no tile has been selected already, highlight valid moves for the piece on that tile
 	{

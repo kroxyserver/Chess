@@ -6,11 +6,13 @@
 
 void FChessModule::StartupModule()
 {
+#if WITH_EDITOR
 	static const FName PropertyEditor("PropertyEditor");
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
 
 	TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("Object", "+Chess", LOCTEXT("+Chess", "+Chess"));
 	Section->AddCategory("+Chess");
+#endif // WITH_EDITOR
 }
 
 void FChessModule::ShutdownModule()
