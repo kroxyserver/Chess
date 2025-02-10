@@ -37,9 +37,42 @@ enum class EChessGameState : uint8
 	Checkmate		UMETA(DisplayName = "Checkmate")
 };
 
+UENUM(BlueprintType)
+enum class EChessGameModeType : uint8
+{
+	Player_VS_AI			UMETA(DisplayName = "Player VS AI"),
+	Player_VS_Player		UMETA(DisplayName = "Player VS Player")
+};
+
+UENUM(BlueprintType)
+enum class EChessMapType : uint8
+{
+	Beach				UMETA(DisplayName = "Beach"),
+	SnowyForest			UMETA(DisplayName = "SnowyForest"),
+	MapleForest			UMETA(DisplayName = "MapleForest"),
+	ConiferForest		UMETA(DisplayName = "ConiferForest")
+};
+
 
 
 // Structures
+
+USTRUCT(BlueprintType)
+struct FChessMapData : public FTableRowBase
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EChessMapType Type;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSoftObjectPtr<UWorld> Map;
+		
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UTexture2D* PreviewImage;
+	
+	FChessMapData() {}
+};
 
 USTRUCT(BlueprintType)
 struct FChessMove

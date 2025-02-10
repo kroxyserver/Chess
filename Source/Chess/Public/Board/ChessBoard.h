@@ -19,7 +19,7 @@ class CHESS_API AChessBoard : public AActor
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Board", meta = (AllowPrivateAccess = "true"))
 	USceneComponent* DefaultSceneRootComponent = nullptr;
 
 public:

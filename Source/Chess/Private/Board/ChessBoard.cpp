@@ -378,8 +378,6 @@ void AChessBoard::UpdateAttackStatusOfTiles(FChessBoardInfo& BoardInfo)
 	BoardInfo.bIsWhiteKingUnderCheck = false;
 	BoardInfo.bIsBlackKingUnderCheck = false;
 
-
-
 	for (FChessTileInfo& Tile : BoardInfo.TilesInfo)
 		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex > -1) // if theres a piece on the tile
 			UpdateTilesUnderAttackByPiece(BoardInfo, Tile.ChessPieceOnTile);
@@ -388,7 +386,7 @@ void AChessBoard::UpdateAttackStatusOfTiles(FChessBoardInfo& BoardInfo)
 	{
 		if (Tile.ChessPieceOnTile.ChessPiecePositionIndex == -1) continue; // if theres no piece on the tile
 
-		if (Tile.ChessPieceOnTile.ChessPieceType != EChessPieceType::King) continue; // if th piece on tile is not a king
+		if (Tile.ChessPieceOnTile.ChessPieceType != EChessPieceType::King) continue; // if the piece on tile is not a king
 
 		if (Tile.ChessPieceOnTile.bIsWhite)
 		{
@@ -417,10 +415,10 @@ void AChessBoard::UpdateTilesUnderAttackByPiece(FChessBoardInfo& BoardInfo, FChe
 			{
 				int32 RelativePositionIndex = RelativePosition.X * 8 + RelativePosition.Y;
 
-				// ignore tile if friendly piece is on that tile
-				if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex > -1)
-					if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.bIsWhite == Piece.bIsWhite)
-						continue;
+				//// ignore tile if friendly piece is on that tile
+				//if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.ChessPiecePositionIndex > -1)
+				//	if (BoardInfo.TilesInfo[RelativePositionIndex].ChessPieceOnTile.bIsWhite == Piece.bIsWhite)
+				//		continue;
 
 				ValidMovePositions.Add(RelativePositionIndex);
 			}
@@ -1262,7 +1260,11 @@ float AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile, bool bIs
 		{
 			ChessBoardInfo.TilesInfo[ChessBoardInfo.EnpassantPawn.ChessPiecePositionIndex].ChessPieceOnTile = FChessPieceInfo();
 
-			if (AChessTile* EnpassantPawnTile = ChessTiles[EnpassantPawn->ChessPieceInfo.ChessPiecePositionIndex]) EnpassantPawnTile->ChessPieceOnTile = nullptr;
+			if (AChessTile* EnpassantPawnTile = ChessTiles[EnpassantPawn->ChessPieceInfo.ChessPiecePositionIndex])
+			{
+				EnpassantPawnTile->ChessTileInfo.ChessPieceOnTile = FChessPieceInfo();
+				EnpassantPawnTile->ChessPieceOnTile = nullptr;
+			}
 
 			EnpassantPawn->CapturePiece();
 		}

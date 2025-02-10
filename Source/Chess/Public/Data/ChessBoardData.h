@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+#include "Miscellaneous/StructuresAndEnumerations.h"
+
 #include "Engine/DataAsset.h"
 
 #include "ChessBoardData.generated.h"
@@ -51,4 +53,13 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Mesh|BlackPieces")
 	UStaticMesh* BlackPawn;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Material|Tile")
+	UMaterialInterface* TileHighlightMaterial;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Material|Tile")
+	UMaterialInterface* WhiteTileMaterial;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Material|Tile")
+	UMaterialInterface* BlackTileMaterial;
 };

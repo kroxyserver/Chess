@@ -3,6 +3,7 @@
 #include "Board/ChessTile.h"
 
 #include "Core/ChessPlayerController.h"
+#include "Data/ChessBoardData.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMaterialLibrary.h"
@@ -22,26 +23,49 @@ AChessTile::AChessTile()
 	ChessTileMesh->SetupAttachment(DefaultSceneRootComponent);
 	ChessTileMesh->SetCollisionProfileName("ChessTile");
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ChessTileMeshAsset(TEXT("/Script/Engine.StaticMesh'/Game/Assets/Meshes/SM_ChessTile.SM_ChessTile'"));
+	// ChessTileHighlightMesh
+	ChessTileHighlightMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChessTileHighlightMesh"));
+	ChessTileHighlightMesh->SetupAttachment(DefaultSceneRootComponent);
+	ChessTileHighlightMesh->SetCollisionProfileName("ChessTile");
+	ChessTileHighlightMesh->SetVisibility(false);
+
+	static ConstructorHelpers::FObjectFinder<UChessBoardData> ChessBoardDataAsset(TEXT("/Script/Chess.ChessBoardData'/Game/+Chess/Data/DA_ChessBoardData.DA_ChessBoardData'"));
+	if (ChessBoardDataAsset.Succeeded()) ChessBoardData = ChessBoardDataAsset.Object;
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ChessTileMeshAsset(TEXT("/Script/Engine.StaticMesh'/Game/Assets/Meshes/ChessTile/SM_ChessTile.SM_ChessTile'"));
 	if (ChessTileMeshAsset.Succeeded()) ChessTileMesh->SetStaticMesh(ChessTileMeshAsset.Object);
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TileMaterialAsset(TEXT("/Script/Engine.MaterialInstanceConstant'/Game/+Chess/Materials/ChessTile/M_ChessTile.M_ChessTile'"));
-	if (TileMaterialAsset.Succeeded()) TileMaterial = TileMaterialAsset.Object;
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ChessTileHighlightMeshAsset(TEXT("/Script/Engine.StaticMesh'/Game/Assets/Meshes/ChessTile/SM_ChessTile_HighlightBorder.SM_ChessTile_HighlightBorder'"));
+	if (ChessTileHighlightMeshAsset.Succeeded()) ChessTileHighlightMesh->SetStaticMesh(ChessTileHighlightMeshAsset.Object);
 }
 
 void AChessTile::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	if (TileMaterial)
+	if (ChessBoardData)
 	{
-		TileMaterialInstanceDynamic = UKismetMaterialLibrary::CreateDynamicMaterialInstance(this, TileMaterial);
-		if (TileMaterialInstanceDynamic)
+		if (ChessTileInfo.bIsWhite)
 		{
-			ChessTileMesh->SetMaterial(0, TileMaterialInstanceDynamic);
-
-			TileMaterialInstanceDynamic->SetVectorParameterValue("Colour", (ChessTileInfo.bIsWhite) ? FLinearColor::White : FLinearColor::Black);
+			if (ChessBoardData->WhiteTileMaterial) TileMaterial = ChessBoardData->WhiteTileMaterial;
 		}
+		else
+		{
+			if (ChessBoardData->BlackTileMaterial) TileMaterial = ChessBoardData->BlackTileMaterial;
+		}
+
+		if (TileMaterial)
+		{
+			TileMaterialInstanceDynamic = UKismetMaterialLibrary::CreateDynamicMaterialInstance(this, TileMaterial);
+			if (TileMaterialInstanceDynamic)
+			{
+				ChessTileMesh->SetMaterial(0, TileMaterialInstanceDynamic);
+
+				TileMaterialInstanceDynamic->SetScalarParameterValue("RotationAngle", FMath::FRand());
+			}
+		}
+
+		TileHighlightMaterial = ChessBoardData->TileHighlightMaterial;
 	}
 }
 
@@ -57,10 +81,7 @@ void AChessTile::Tick(float DeltaTime)
 
 void AChessTile::HighlightTile(bool bHighlight)
 {
-	if (bHighlight)
-		TileMaterialInstanceDynamic->SetVectorParameterValue("Colour", FLinearColor::Green);
-	else
-		TileMaterialInstanceDynamic->SetVectorParameterValue("Colour", (ChessTileInfo.bIsWhite) ? FLinearColor::White : FLinearColor::Black);
-
+	if (ChessTileHighlightMesh) ChessTileHighlightMesh->SetVisibility(bHighlight);
+	
 	ChessTileInfo.bIsHighlighted = bHighlight;
 }

@@ -7,6 +7,7 @@
 #include "Core/ChessPlayer.h"
 #include "Core/ChessPlayerController.h"
 
+#include "Engine/LevelStreamingDynamic.h"
 #include "Engine/TargetPoint.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -35,11 +36,49 @@ void AChessGameMode::BeginPlay()
 	UChessGameInstance* ChessGameInstance = Cast<UChessGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
 	if (!ChessGameInstance) return PRINTSTRING(FColor::Red, "ChessGameInstance is Invalid in GameMode");
 
+	if (!ChessGameInstance->ChessMapDataTable) return PRINTSTRING(FColor::Red, "ChessMapDataTable is Invalid in GameMode");
+
+	if (ChessGameInstance->ChessMapDataTable->GetRowNames().Num() == 0) return PRINTSTRING(FColor::Red, "ChessMapDataTable is Empty in GameMode");
+
 	ChessPlayerController = Cast<AChessPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
 	if (!ChessPlayerController) return PRINTSTRING(FColor::Red, "ChessPlayerController is Invalid in GameMode");
 
 	ChessPlayer= Cast<AChessPlayer>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
 	if (!ChessPlayer) return PRINTSTRING(FColor::Red, "ChessPlayer is Invalid in GameMode");
+
+
+
+	// Get Map Environment based on ChessMapType
+	TSoftObjectPtr<UWorld> Map;
+
+	TArray<FName> RowNames = ChessGameInstance->ChessMapDataTable->GetRowNames();
+	for (FName RowName : RowNames)
+	{
+		FChessMapData* Item = ChessGameInstance->ChessMapDataTable->FindRow<FChessMapData>(RowName, "");
+		if (Item->Type == ChessGameInstance->ChessMapType)
+		{
+			Map = Item->Map;
+			break;
+		}
+	}
+
+	if (Map.IsNull()) return PRINTSTRING(FColor::Red, "Map is Invalid in GameMode");
+
+
+
+	// Load Map based on ChessMapType
+	FLatentActionInfo LatentInfo;
+	bool OutSuccess;
+	ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(
+		this,
+		Map,
+		FVector::ZeroVector,
+		FRotator::ZeroRotator,
+		OutSuccess,	
+		"",
+		ULevelStreamingDynamic::StaticClass(),
+		false
+	);
 
 
 

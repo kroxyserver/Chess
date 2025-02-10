@@ -11,6 +11,7 @@
 #include "ChessTile.generated.h"
 
 class AChessPiece;
+class UChessBoardData;
 
 UCLASS()
 class CHESS_API AChessTile : public AActor
@@ -20,8 +21,11 @@ class CHESS_API AChessTile : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Tile", meta = (AllowPrivateAccess = "true"))
 	USceneComponent* DefaultSceneRootComponent = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Tile", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Tile", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ChessTileMesh = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Tile", meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* ChessTileHighlightMesh = nullptr;
 
 public:
 	AChessTile();
@@ -29,6 +33,7 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 	FORCEINLINE UStaticMeshComponent* GetChessTileMesh() const { return ChessTileMesh; }
+	FORCEINLINE UStaticMeshComponent* GetChessTileHighlightMesh() const { return ChessTileHighlightMesh; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -46,7 +51,13 @@ public:
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Tile")
+	UChessBoardData* ChessBoardData = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Tile")
 	UMaterialInterface* TileMaterial = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Tile")
+	UMaterialInterface* TileHighlightMaterial = nullptr;
 
 	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Tile")
 	UMaterialInstanceDynamic* TileMaterialInstanceDynamic = nullptr;
