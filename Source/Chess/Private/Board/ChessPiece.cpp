@@ -180,16 +180,16 @@ float AChessPiece::MovePiece(AChessTile* MoveToTile)
 	return InterpToMovementComponent->Duration;
 }
 
-void AChessPiece::PromotePawn(EChessPieceType PromotionType)
-{
-	if (ChessPieceInfo.ChessPieceType != EChessPieceType::Pawn) return;
-
-	if (PromotionType == EChessPieceType::King || PromotionType == EChessPieceType::Pawn) return;
-
-	ChessPieceInfo.ChessPieceType = PromotionType; // Set ChessPieceType to PromotionType
-
-	UpdateChessPieceStaticMesh(); // Update Static Mesh to new PieceType
-}
+//void AChessPiece::PromotePawn(EChessPieceType PromotionType)
+//{
+//	if (ChessPieceInfo.ChessPieceType != EChessPieceType::Pawn) return;
+//
+//	if (PromotionType == EChessPieceType::King || PromotionType == EChessPieceType::Pawn) return;
+//
+//	ChessPieceInfo.ChessPieceType = PromotionType; // Set ChessPieceType to PromotionType
+//
+//	UpdateChessPieceStaticMesh(); // Update Static Mesh to new PieceType
+//}
 
 void AChessPiece::UpdateChessPieceStaticMesh()
 {
@@ -200,22 +200,22 @@ void AChessPiece::UpdateChessPieceStaticMesh()
 			switch (ChessPieceInfo.ChessPieceType)
 			{
 			case EChessPieceType::King:
-				if (ChessBoardData->WhiteKing) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteKing);
+				if (ChessBoardData->WhiteKing.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteKing.LoadSynchronous());
 				break;
 			case EChessPieceType::Queen:
-				if (ChessBoardData->WhiteQueen) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteQueen);
+				if (ChessBoardData->WhiteQueen.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteQueen.LoadSynchronous());
 				break;
 			case EChessPieceType::Bishop:
-				if (ChessBoardData->WhiteBishop) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteBishop);
+				if (ChessBoardData->WhiteBishop.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteBishop.LoadSynchronous());
 				break;
 			case EChessPieceType::Knight:
-				if (ChessBoardData->WhiteKnight) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteKnight);
+				if (ChessBoardData->WhiteKnight.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteKnight.LoadSynchronous());
 				break;
 			case EChessPieceType::Rook:
-				if (ChessBoardData->WhiteRook) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteRook);
+				if (ChessBoardData->WhiteRook.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhiteRook.LoadSynchronous());
 				break;
 			case EChessPieceType::Pawn:
-				if (ChessBoardData->WhitePawn) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhitePawn);
+				if (ChessBoardData->WhitePawn.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->WhitePawn.LoadSynchronous());
 				break;
 			default:
 				break;
@@ -226,22 +226,22 @@ void AChessPiece::UpdateChessPieceStaticMesh()
 			switch (ChessPieceInfo.ChessPieceType)
 			{
 			case EChessPieceType::King:
-				if (ChessBoardData->BlackKing) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackKing);
+				if (ChessBoardData->BlackKing.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackKing.LoadSynchronous());
 				break;
 			case EChessPieceType::Queen:
-				if (ChessBoardData->BlackQueen) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackQueen);
+				if (ChessBoardData->BlackQueen.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackQueen.LoadSynchronous());
 				break;
 			case EChessPieceType::Bishop:
-				if (ChessBoardData->BlackBishop) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackBishop);
+				if (ChessBoardData->BlackBishop.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackBishop.LoadSynchronous());
 				break;
 			case EChessPieceType::Knight:
-				if (ChessBoardData->BlackKnight) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackKnight);
+				if (ChessBoardData->BlackKnight.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackKnight.LoadSynchronous());
 				break;
 			case EChessPieceType::Rook:
-				if (ChessBoardData->BlackRook) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackRook);
+				if (ChessBoardData->BlackRook.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackRook.LoadSynchronous());
 				break;
 			case EChessPieceType::Pawn:
-				if (ChessBoardData->BlackPawn) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackPawn);
+				if (ChessBoardData->BlackPawn.LoadSynchronous()) ChessPieceMesh->SetStaticMesh(ChessBoardData->BlackPawn.LoadSynchronous());
 				break;
 			default:
 				break;

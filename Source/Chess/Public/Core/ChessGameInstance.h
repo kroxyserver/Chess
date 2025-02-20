@@ -18,6 +18,8 @@ class CHESS_API UChessGameInstance : public UGameInstance
 public:
 	UChessGameInstance();
 
+	virtual void Init() override;
+
 #pragma region FUNCTIONS
 
 public:

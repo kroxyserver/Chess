@@ -12,7 +12,12 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 
+#if WITH_EDITOR
 #define PRINTSTRING(Colour, DebugMessage) GEngine->AddOnScreenDebugMessage(INDEX_NONE, 3.f, Colour, DebugMessage);
+#else
+#define PRINTSTRING(Colour, DebugMessage)
+#endif
+
 
 AChessGameMode::AChessGameMode() :
 	ChessBoardClass(AChessBoard::StaticClass()),
@@ -67,7 +72,6 @@ void AChessGameMode::BeginPlay()
 
 
 	// Load Map based on ChessMapType
-	FLatentActionInfo LatentInfo;
 	bool OutSuccess;
 	ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(
 		this,
@@ -79,6 +83,7 @@ void AChessGameMode::BeginPlay()
 		ULevelStreamingDynamic::StaticClass(),
 		false
 	);
+
 
 
 
@@ -159,17 +164,19 @@ void AChessGameMode::SwitchTurn()
 				? (ChessBoard->WhiteOpeningIndex < ChessBoard->WhiteOpeningMoves[ChessBoard->WhiteOpeningMove].Num())	// if AI is White and White Opening Moves are available...
 				: (ChessBoard->BlackOpeningIndex < ChessBoard->BlackOpeningMoves[ChessBoard->BlackOpeningMove].Num()))	// if AI is Black and Black Opening Moves are available...
 			{
+				float TimeTakenToMovePiece = 1.f;
+
 				// Do an Opening Move
 				if (bIsWhiteTurn)
 				{
 					FChessMove Move = ChessBoard->WhiteOpeningMoves[ChessBoard->WhiteOpeningMove][ChessBoard->WhiteOpeningIndex];
-					ChessBoard->MakeMove(ChessBoard->ChessTiles[Move.FromIndex], ChessBoard->ChessTiles[Move.ToIndex], true);
+					TimeTakenToMovePiece = ChessBoard->MakeMove(ChessBoard->ChessTiles[Move.FromIndex], ChessBoard->ChessTiles[Move.ToIndex], true);
 					ChessBoard->WhiteOpeningIndex++;
 				}
 				else
 				{
 					FChessMove Move = ChessBoard->BlackOpeningMoves[ChessBoard->BlackOpeningMove][ChessBoard->BlackOpeningIndex];
-					ChessBoard->MakeMove(ChessBoard->ChessTiles[Move.FromIndex], ChessBoard->ChessTiles[Move.ToIndex], true);
+					TimeTakenToMovePiece = ChessBoard->MakeMove(ChessBoard->ChessTiles[Move.FromIndex], ChessBoard->ChessTiles[Move.ToIndex], true);
 					ChessBoard->BlackOpeningIndex++;
 				}
 
@@ -182,7 +189,7 @@ void AChessGameMode::SwitchTurn()
 						ChessPlayerController->OnPieceMoved.Broadcast(bIsWhiteTurn);
 						SwitchTurn();
 					},
-					.1f,
+					TimeTakenToMovePiece,
 					false
 				);
 			}
@@ -196,23 +203,76 @@ void AChessGameMode::SwitchTurn()
 					{
 						if (BestMove.FromIndex == -1 || BestMove.ToIndex == -1)	return PRINTSTRING(FColor::Red, "CHECKMATE, Player Wins / Invalid Best Move for AI");
 
-						ChessBoard->MakeMove(ChessBoard->ChessTiles[BestMove.FromIndex], ChessBoard->ChessTiles[BestMove.ToIndex], true);
+						float TimeTakenToMovePiece = 1.f;
+						TimeTakenToMovePiece = ChessBoard->MakeMove(ChessBoard->ChessTiles[BestMove.FromIndex], ChessBoard->ChessTiles[BestMove.ToIndex], true);
 
 						FTimerHandle TH_MakeMoveDelay;
 						GetWorldTimerManager().SetTimer(
 							TH_MakeMoveDelay,
 							[this]()
-							{
-								PRINTSTRING(FColor::Green, "enable Input");
-								ChessPlayerController->EnableInput(ChessPlayerController);
+							{								
+							ChessPlayerController->EnableInput(ChessPlayerController);
 								ChessPlayerController->OnPieceMoved.Broadcast(bIsWhiteTurn);
 								SwitchTurn();
 							},
-							.1f,
+							TimeTakenToMovePiece,
 							false
 						);
 					});
 				});
+
+				/*
+				// Create a shared promise and future
+				TPromise<FChessMove> MovePromise = TPromise<FChessMove>();
+				TFuture<FChessMove> MoveFuture = MovePromise.GetFuture();
+
+				// Copy ChessBoardInfo before launching async thread to avoid race conditions
+				FChessBoardInfo BoardInfoCopy = ChessBoard->ChessBoardInfo;
+				bool bCurrentTurn = bIsWhiteTurn;
+				int32 SearchDepth = ChessBoard->MaxSearchDepthForAIMove;
+				AChessBoard* ChessBoardCopy = ChessBoard;
+
+				// Calculate Best AI Move on a separate thread asynchronously
+				Async(EAsyncExecution::ThreadPool, [ChessBoardCopy, &MovePromise, BoardInfoCopy, bCurrentTurn, SearchDepth]()
+				{
+					FChessMove BestMove = ChessBoardCopy->CalculateBestAIMove(BoardInfoCopy, bCurrentTurn, SearchDepth);
+					MovePromise.SetValue(BestMove); // set calculated move in promise
+				});
+
+				// Setup a repeating timer to check when the AI move is ready
+				FTimerHandle MoveCheckTimer;
+				GetWorldTimerManager().SetTimer(
+					MoveCheckTimer,
+					[this, &MoveFuture, &MoveCheckTimer]()
+					{
+						if (!MoveFuture.IsReady()) return; // Wait until AI move is calculated
+
+						GetWorldTimerManager().ClearTimer(MoveCheckTimer); // Clear the timer once the move is ready
+
+						FChessMove BestMove = MoveFuture.Get();
+
+						if (BestMove.FromIndex == -1 || BestMove.ToIndex == -1) return PRINTSTRING(FColor::Red, "CHECKMATE, Player Wins / Invalid Best Move for AI");
+
+						ChessBoard->MakeMove(ChessBoard->ChessTiles[BestMove.FromIndex], ChessBoard->ChessTiles[BestMove.ToIndex], true);
+
+						// Add a small delay before switching turns
+						FTimerHandle TH_MakeMoveDelay;
+						GetWorldTimerManager().SetTimer(
+							TH_MakeMoveDelay,
+							[this]()
+							{
+								ChessPlayerController->EnableInput(ChessPlayerController);
+								ChessPlayerController->OnPieceMoved.Broadcast(bIsWhiteTurn);
+								SwitchTurn();
+							},
+							0.1f, // 100ms delay
+							false
+						);
+					},
+					0.01f, // Check every 10ms
+					true // Loop until the move is ready
+				);
+				*/
 			}
 		}
 		

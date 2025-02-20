@@ -56,8 +56,8 @@ public:
 
 	float MovePiece(AChessTile* MoveToTile);
 
-	UFUNCTION(BlueprintCallable, Category = "+Chess|Piece")
-	void PromotePawn(EChessPieceType PromotionType);
+	//UFUNCTION(BlueprintCallable, Category = "+Chess|Piece")
+	//void PromotePawn(EChessPieceType PromotionType);
 
 #pragma endregion
 

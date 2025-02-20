@@ -9,6 +9,8 @@
 #include "Data/ChessBoardData.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 #define PRINTSTRING(Colour, DebugMessage) GEngine->AddOnScreenDebugMessage(INDEX_NONE, 3.f, Colour, DebugMessage);
 
@@ -1284,21 +1286,21 @@ float AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile, bool bIs
 		{
 			if (bIsAIMove)
 			{
-				ChessPiece->PromotePawn(FindBestPawnPromotionType(ChessBoardInfo, ChessPiece->ChessPieceInfo.ChessPiecePositionIndex, ChessPiece->ChessPieceInfo.bIsWhite));
+				PromotePawn(ChessPiece, FindBestPawnPromotionType(ChessBoardInfo, ChessPiece->ChessPieceInfo.ChessPiecePositionIndex, ChessPiece->ChessPieceInfo.bIsWhite));
 			}
 			else
 			{
 				AChessPlayerController* ChessPlayerController = Cast<AChessPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
 				if (ChessPlayerController)
 				{
-					ChessPlayerController->SpawnPawnPromotionUI(ChessPiece);
+					ChessPlayerController->SpawnPawnPromotionUI(this, ChessPiece);
 				}
 				else
 				{
 					PRINTSTRING(FColor::Red, "ChessPlayerController is INVALID in ChessBoard");
 
 					// Promote to a queen (default behavior)
-					ChessPiece->PromotePawn(EChessPieceType::Queen);
+					PromotePawn(ChessPiece, EChessPieceType::Queen);
 				}
 			}
 		}
@@ -1307,7 +1309,61 @@ float AChessBoard::MakeMove(AChessTile* StartTile, AChessTile* EndTile, bool bIs
 		break;
 	}
 
+	HighlightPreviousMoveTiles(StartTile, EndTile);
+
 	return TimeTakenToMovePiece;
+}
+
+void AChessBoard::HighlightPreviousMoveTiles(AChessTile* StartTile, AChessTile* EndTile)
+{
+
+	if (!PreviousMoveStartTileHighlightFX)
+	{
+		if (!ChessBoardData) return PRINTSTRING(FColor::Red, "ChessBoardData is Invalid in ChessBoard");
+
+		if (!ChessBoardData->PreviousMoveHighlightFX) return PRINTSTRING(FColor::Red, "PreviousMoveHighlightFX is Invalid in ChessBoard");
+
+		PreviousMoveStartTileHighlightFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			ChessBoardData->PreviousMoveHighlightFX,
+			StartTile->GetRootComponent(),
+			NAME_None,
+			FVector::ZeroVector,
+			FRotator::ZeroRotator,
+			EAttachLocation::KeepRelativeOffset,
+			true,
+			true,
+			ENCPoolMethod::AutoRelease,
+			true
+		);
+	}
+	else
+	{
+		PreviousMoveStartTileHighlightFX->AttachToComponent(StartTile->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	}
+
+	if (!PreviousMoveEndTileHighlightFX)
+	{
+		if (!ChessBoardData) return PRINTSTRING(FColor::Red, "ChessBoardData is Invalid in ChessBoard");
+
+		if (!ChessBoardData->PreviousMoveHighlightFX) return PRINTSTRING(FColor::Red, "PreviousMoveHighlightFX is Invalid in ChessBoard");
+
+		PreviousMoveEndTileHighlightFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			ChessBoardData->PreviousMoveHighlightFX,
+			EndTile->GetRootComponent(),
+			NAME_None,
+			FVector::ZeroVector,
+			FRotator::ZeroRotator,
+			EAttachLocation::KeepRelativeOffset,
+			true,
+			true,
+			ENCPoolMethod::AutoRelease,
+			true
+		);
+	}
+	else
+	{
+		PreviousMoveEndTileHighlightFX->AttachToComponent(EndTile->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	}
 }
 
 bool AChessBoard::IsKingInCheck(const FChessBoardInfo& BoardInfo, bool bIsWhiteKing)
@@ -1408,6 +1464,27 @@ void AChessBoard::DisableEnpassant(bool bIsWhite)
 	}
 }
 
+void AChessBoard::PromotePawn(AChessPiece* PawnToPromote, EChessPieceType PromotionType)
+{
+	/* Only call PromotePawn after moving the pawn and updating its position in ChessBoardInfo */
+
+	if (PromotionType == EChessPieceType::King || PromotionType == EChessPieceType::Pawn) return PRINTSTRING(FColor::Red, "PromotionType cannot be to a King or Pawn"); // redundant check, but just in case
+
+	if (!PawnToPromote) return PRINTSTRING(FColor::Red, "PawnToPromote is INVALID in ChessBoard");
+		
+	if (PawnToPromote->ChessPieceInfo.ChessPieceType != EChessPieceType::Pawn) return PRINTSTRING(FColor::Red, "Cannot promote chess piece because its not a pawn");;
+
+	// Update ChessBoardInfo
+	FChessPieceInfo& ChessPieceInfo = ChessBoardInfo.TilesInfo[PawnToPromote->ChessPieceInfo.ChessPiecePositionIndex].ChessPieceOnTile;
+	ChessPieceInfo.ChessPieceType = PromotionType;
+	
+	// Update ChessPieceInfo
+	PawnToPromote->ChessPieceInfo.ChessPieceType = PromotionType;
+
+	// Update Static Mesh
+	PawnToPromote->UpdateChessPieceStaticMesh();
+}
+
 int32 AChessBoard::MoveGenerationTest(FChessBoardInfo BoardInfo, bool bIsWhiteTurn, int32 Depth)
 {
 	if (Depth == 0) return 1;
@@ -1469,15 +1546,16 @@ FChessMove AChessBoard::CalculateBestAIMove(FChessBoardInfo BoardInfo, bool bIsW
 EChessPieceType AChessBoard::FindBestPawnPromotionType(FChessBoardInfo BoardInfo, int32 PiecePositionIndex, bool bIsPieceWhite)
 {
 	EChessPieceType BestPromotionType = EChessPieceType::Queen;
-	int32 BestEval = INT_MIN;
+	int32 BestEval = (bIsPieceWhite) ? INT_MIN : INT_MAX;
 
-	for (EChessPieceType Type : { EChessPieceType::King, EChessPieceType::Queen, EChessPieceType::Bishop, EChessPieceType::Knight, EChessPieceType::Rook, EChessPieceType::Pawn })
+	for (EChessPieceType Type : { EChessPieceType::Queen, EChessPieceType::Bishop, EChessPieceType::Knight, EChessPieceType::Rook })
 	{
 		BoardInfo.TilesInfo[PiecePositionIndex].ChessPieceOnTile.ChessPieceType = Type;
 
 		int32 Eval = EvaluateBoard(BoardInfo);
-	
-		if ((bIsPieceWhite && Eval > BestEval) || (!bIsPieceWhite && Eval < BestEval))
+
+		//if ((bIsPieceWhite && Eval > BestEval) || (!bIsPieceWhite && Eval < BestEval))
+		if ((bIsPieceWhite) ? Eval > BestEval : Eval < BestEval)
 		{
 			BestEval = Eval;
 			BestPromotionType = Type;

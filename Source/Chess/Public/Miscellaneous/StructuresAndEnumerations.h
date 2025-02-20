@@ -71,7 +71,11 @@ struct FChessMapData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UTexture2D* PreviewImage;
 	
-	FChessMapData() {}
+	FChessMapData() :
+		Type(EChessMapType::Beach),
+		Map(nullptr),
+		PreviewImage(nullptr) {
+	}
 };
 
 USTRUCT(BlueprintType)

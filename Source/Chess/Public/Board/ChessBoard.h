@@ -14,6 +14,8 @@ class AChessPiece;
 class AChessTile;
 class UChessBoardData;
 
+class UNiagaraComponent;
+
 UCLASS()
 class CHESS_API AChessBoard : public AActor
 {
@@ -74,6 +76,8 @@ public:
 
 	float MakeMove(AChessTile* StartTile, AChessTile* EndTile, bool bIsAIMove);
 
+	void HighlightPreviousMoveTiles(AChessTile* StartTile, AChessTile* EndTile);
+
 
 	// Check Functions
 	bool IsKingInCheck(const FChessBoardInfo& BoardInfo, bool bIsWhiteKing);
@@ -84,6 +88,11 @@ public:
 
 	UFUNCTION()
 	void DisableEnpassant(bool bIsWhite);
+
+
+	// Pawn Promotion Functions
+	UFUNCTION(BlueprintCallable, Category = "+Chess|Board")
+	void PromotePawn(AChessPiece* PawnToPromote, EChessPieceType PromotionType);
 
 
 	// AI Functions
@@ -189,6 +198,12 @@ public:
 		{ FChessMove(51, 35), FChessMove(62, 45) },
 		{ FChessMove(52, 44), FChessMove(51, 35) }
 	};
+
+	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
+	UNiagaraComponent* PreviousMoveStartTileHighlightFX = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Board")
+	UNiagaraComponent* PreviousMoveEndTileHighlightFX = nullptr;
 
 private:
 	TArray<FVector2D> KingMovePositionTileOffsets = { FVector2D(1, -1), FVector2D(1, 0), FVector2D(1, 1), FVector2D(0, 1), FVector2D(-1, 1), FVector2D(-1, 0), FVector2D(-1, -1), FVector2D(0, -1) };

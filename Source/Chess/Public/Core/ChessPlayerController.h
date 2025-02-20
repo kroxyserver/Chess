@@ -10,6 +10,7 @@
 
 #include "ChessPlayerController.generated.h"
 
+class AChessBoard;
 class AChessTile;
 class AChessPiece;
 
@@ -37,7 +38,7 @@ public:
     void SelectPiece();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "+Chess|PlayerController")
-    void SpawnPawnPromotionUI(AChessPiece* PawnPiece);
+    void SpawnPawnPromotionUI(AChessBoard* ChessBoard, AChessPiece* PawnToPromote);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "+Chess|PlayerController")
     void SpawnGameOverUI(EChessGameState GameState, bool bIsWhiteTurn);

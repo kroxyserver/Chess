@@ -13,6 +13,8 @@
 class AChessPiece;
 class UChessBoardData;
 
+class UNiagaraComponent;
+
 UCLASS()
 class CHESS_API AChessTile : public AActor
 {
@@ -25,7 +27,7 @@ class CHESS_API AChessTile : public AActor
 	UStaticMeshComponent* ChessTileMesh = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "+Chess|Tile", meta = (AllowPrivateAccess = "true"))
-	UStaticMeshComponent* ChessTileHighlightMesh = nullptr;
+	UNiagaraComponent* HighlightFX = nullptr;
 
 public:
 	AChessTile();
@@ -33,7 +35,7 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 	FORCEINLINE UStaticMeshComponent* GetChessTileMesh() const { return ChessTileMesh; }
-	FORCEINLINE UStaticMeshComponent* GetChessTileHighlightMesh() const { return ChessTileHighlightMesh; }
+	FORCEINLINE UNiagaraComponent* GetHighlightFX() const { return HighlightFX; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -55,9 +57,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Tile")
 	UMaterialInterface* TileMaterial = nullptr;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "+Chess|Tile")
-	UMaterialInterface* TileHighlightMaterial = nullptr;
 
 	UPROPERTY(BlueprintReadOnly, Category = "+Chess|Tile")
 	UMaterialInstanceDynamic* TileMaterialInstanceDynamic = nullptr;
